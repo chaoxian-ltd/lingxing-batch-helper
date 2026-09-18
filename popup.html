@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>领星出库批次助手</title><link rel="stylesheet" href="popup.css"></head>
+<body><main>
+  <header><div><h1>出库批次助手</h1><p>先添加 SKU 和采购单号，再开始匹配批次。</p></div></header>
+  <div class="import-toolbar"><button id="load-skus">读取页面 SKU</button><button id="open-import">批量导入</button><button id="clear-rows" class="text-button" hidden>清空列表</button></div>
+  <section class="bulk" id="bulk-section" hidden><label for="bulk-order">多个 SKU 使用同一采购单号</label><div><input id="bulk-order" placeholder="例如：YJYZJXY2082"><button id="apply-bulk">应用到已勾选</button></div><p>勾选需要填写的行，再应用采购单号。</p></section>
+  <section class="mapping"><div class="table-head"><label><input id="select-all" type="checkbox"> 全选</label><span>SKU</span><span>采购单号</span><span></span></div><div id="rows" class="rows"></div><button id="add-row" class="add">＋ 手动添加 SKU</button></section>
+  <p id="summary" class="summary" aria-live="polite">可读取页面 SKU，也可直接批量导入。</p>
+  <div class="actions" id="match-actions" hidden><button id="run" class="primary">开始匹配</button><button id="stop" class="secondary" disabled>暂停</button></div>
+  <section class="activity" aria-live="polite"><h2>执行记录</h2><ol id="log"></ol></section>
+  <p class="notice">插件只会确认每个批次弹窗，不会点击整张发货单底部的最终提交按钮。</p>
+</main>
+<dialog id="import-dialog" aria-labelledby="import-title">
+  <h2 id="import-title">批量导入</h2>
+  <p>左右每行一一对应。已有 SKU 会更新采购单号，其他行保留；新 SKU 会添加到列表。</p>
+  <div class="import-columns">
+    <label>SKU<textarea id="import-skus" rows="12" spellcheck="false" placeholder="每行一个 SKU"></textarea></label>
+    <label>采购单号<textarea id="import-orders" rows="12" spellcheck="false" placeholder="每行一个采购单号，例如 YJYZJXY2082"></textarea></label>
+  </div>
+  <p id="import-error" role="alert"></p>
+  <div class="actions"><button id="confirm-import">导入到列表</button><button id="cancel-import" class="secondary">取消</button></div>
+</dialog>
+<script src="import.js"></script><script src="popup.js"></script></body>
+</html>
