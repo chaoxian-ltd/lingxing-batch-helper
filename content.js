@@ -1,6 +1,6 @@
 (() => {
-  if (globalThis.__lingxingBatchHelperVersion === '0.1.2') return;
-  globalThis.__lingxingBatchHelperVersion = '0.1.2';
+  if (globalThis.__lingxingBatchHelperVersion === '0.1.5') return;
+  globalThis.__lingxingBatchHelperVersion = '0.1.5';
   let cancelled = false;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const visible = element => !!element && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
@@ -110,7 +110,7 @@
       const parts = cell => [...(cell?.querySelectorAll('.batch_info_row') || [])];
       const numbers = parts(batchCell);
       const orders = parts(columnCell(product, ['采购单号']));
-      const available = parts(columnCell(product, ['批次可用量']));
+      const available = parts(columnCell(product, ['可用总出库量']));
       const quantities = parts(columnCell(product, ['批次可用出库量']));
       return numbers.flatMap((part, index) => {
         const number = text(part);
@@ -130,7 +130,7 @@
       (!batchNumber || text(columnCell(candidate, ['批次号', '批次编号', '库存批次号'])) === batchNumber))
       .map(candidate => ({
         batchNumber: text(columnCell(candidate, ['批次号', '批次编号', '库存批次号'])),
-        availableCell: columnCell(candidate, ['可用批次量', '批次可用量']),
+        availableCell: columnCell(candidate, ['可用总出库量']),
         quantityCell: columnCell(candidate, ['出库数量', '出库量', '批次出库量', '批次可用出库量'])
       }));
   }
@@ -145,7 +145,7 @@
     const inputs = [...(quantityCell?.querySelectorAll('input') || [])].filter(input =>
       visible(input) && !input.disabled && !input.readOnly && input.type !== 'checkbox' && input.type !== 'hidden');
     if (quantity === null || inputs.length !== 1) {
-      throw new Error(`SKU“${sku}”的可用批次量或出库数量列无法唯一识别，未填写数量`);
+      throw new Error(`SKU“${sku}”的可用总出库量或出库数量列无法唯一识别，未填写数量`);
     }
     setValue(inputs[0], quantity);
     await sleep(120);
@@ -167,7 +167,7 @@
     if (existing.length > 1) throw new Error(`SKU“${sku}”已有多个同采购单批次，已暂停`);
     if (existing.length === 1) {
       const quantity = await fillBatchQuantity(sku, purchaseOrder, existing[0].batchNumber);
-      send(`(${number}/${total}) 完成：${sku}，批次 ${existing[0].batchNumber}，批次可用量 ${quantity}，出库数量已核验 ${quantity}`, 'success');
+      send(`(${number}/${total}) 完成：${sku}，批次 ${existing[0].batchNumber}，可用总出库量 ${quantity}，出库数量已核验 ${quantity}`, 'success');
       return;
     }
     const addButton = exactButton(row, '添加指定出库批次');
@@ -206,7 +206,7 @@
       scopedBatchRows(sku, purchaseOrder, batchNumber).length === 1), 8000, '批次确认后未关闭，已暂停');
 
     const quantity = await fillBatchQuantity(sku, purchaseOrder, batchNumber);
-    send(`(${number}/${total}) 完成：${sku}，批次 ${batchNumber}，可用批次量 ${quantity}，出库数量已核验 ${quantity}`, 'success');
+    send(`(${number}/${total}) 完成：${sku}，批次 ${batchNumber}，可用总出库量 ${quantity}，出库数量已核验 ${quantity}`, 'success');
   }
 
   async function run(pairs) {

@@ -33,7 +33,7 @@ class Input extends Element {
   set value(value) { this._value = value; }
 }
 const el = (tag, value = '', children = []) => new Element(tag, value, children);
-function fixture(quantities, { expanded = false, quantityHeader = '可用批次量' } = {}) {
+function fixture(quantities, { expanded = false, quantityHeader = '可用总出库量' } = {}) {
   const inputs = [];
   const rows = quantities.flatMap((quantity, index) => {
     const input = new Input();
@@ -64,15 +64,16 @@ function load(document) {
 test('real VXE layout: split header/body tables and multiple batches inside each SKU cell', async () => {
   const values = [[48, 6], [36, 9], [32, 17]];
   const inputs = values.map(pair => pair.map(() => new Input()));
-  const labels = ['图片', '品名/SKU', '出库批次号', '批次可用量', '批次可用出库量', '采购单号'];
+  const labels = ['图片', '品名/SKU', '出库批次号', '批次可用量', '可用总出库量', '批次可用出库量', '采购单号'];
   const cell = (tag, index, label = '', children = []) => Object.assign(el(tag, label, children), { colid: `column-${index}` });
   const part = (label = '', children = []) => Object.assign(el('div', label, children), { className: 'batch_info_row' });
   const rows = values.map((quantities, index) => el('tr', '', [
     cell('td', 0), cell('td', 1, `商品\nSKU-${index}`),
     cell('td', 2, '', [part('BATCH-A'), part('BATCH-B'), part('', [el('button', '添加指定出库批次')])]),
-    cell('td', 3, '', quantities.map(value => part(String(value))).concat(part())),
-    cell('td', 4, '', inputs[index].map(input => part('', [input])).concat(part())),
-    cell('td', 5, '', [part('SAME-PO'), part('SAME-PO'), part()]),
+    cell('td', 3, '', quantities.map(() => part('999')).concat(part())),
+    cell('td', 4, '', quantities.map(value => part(String(value))).concat(part())),
+    cell('td', 5, '', inputs[index].map(input => part('', [input])).concat(part())),
+    cell('td', 6, '', [part('SAME-PO'), part('SAME-PO'), part()]),
   ]));
   const header = el('table', '', [el('tr', '', labels.map((label, index) => cell('th', index, label)))]);
   const body = el('table', '', rows);
