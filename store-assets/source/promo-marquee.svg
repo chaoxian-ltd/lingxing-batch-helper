@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="20" x2="1360" y2="540" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EEF2FF"/>
+      <stop offset=".55" stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#EDE9FE"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="100" y1="76" x2="220" y2="208" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#4338CA"/>
+    </linearGradient>
+    <filter id="cardShadow" x="710" y="28" width="630" height="526" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#312E81" flood-opacity=".16"/>
+    </filter>
+  </defs>
+
+  <rect width="1400" height="560" fill="url(#bg)"/>
+  <circle cx="84" cy="520" r="170" fill="#C7D2FE" opacity=".42"/>
+  <circle cx="1352" cy="20" r="190" fill="#DDD6FE" opacity=".5"/>
+  <circle cx="674" cy="18" r="70" fill="#fff" opacity=".48"/>
+
+  <g>
+    <rect x="92" y="72" width="128" height="128" rx="32" fill="url(#tile)"/>
+    <path d="m124 111 32-18 32 18v38l-32 18-32-18v-38Z" fill="none" stroke="#fff" stroke-width="7" stroke-linejoin="round"/>
+    <path d="m126 111 30 17 30-17m-30 17v36" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m166 146 7 7 16-18" fill="none" stroke="#FBBF24" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="92" y="278" fill="#111827" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="54" font-weight="700">出库批次助手</text>
+  <text x="92" y="332" fill="#4B5563" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="24">SKU × 采购单号，快速匹配出库批次</text>
+  <g transform="translate(92 382)">
+    <rect width="168" height="52" rx="15" fill="#fff" stroke="#DDE2EA"/>
+    <path d="M24 18v14m-6-6 6 6 6-6" fill="none" stroke="#4F46E5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="44" y="34" fill="#374151" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="17" font-weight="600">读取页面 SKU</text>
+  </g>
+  <g transform="translate(276 382)">
+    <rect width="144" height="52" rx="15" fill="#fff" stroke="#DDE2EA"/>
+    <path d="M20 19h14v14H20zm4-5h14v14" fill="none" stroke="#4F46E5" stroke-width="2.3" stroke-linejoin="round"/>
+    <text x="48" y="34" fill="#374151" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="17" font-weight="600">批量导入</text>
+  </g>
+  <g transform="translate(436 382)">
+    <rect width="144" height="52" rx="15" fill="#4F46E5"/>
+    <path d="m22 17 14 9-14 9V17Z" fill="#fff"/>
+    <text x="50" y="34" fill="#fff" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="17" font-weight="600">开始匹配</text>
+  </g>
+  <text x="92" y="484" fill="#6B7280" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="17">只填写批次与数量，最终提交仍由你核对确认</text>
+
+  <g filter="url(#cardShadow)">
+    <rect x="756" y="54" width="520" height="452" rx="28" fill="#fff"/>
+    <text x="794" y="105" fill="#111827" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="25" font-weight="700">出库批次助手</text>
+    <text x="794" y="136" fill="#6B7280" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="15">添加 SKU 和采购单号，再匹配对应批次。</text>
+
+    <rect x="794" y="165" width="211" height="52" rx="13" fill="#F8FAFC" stroke="#E5E7EB"/>
+    <text x="848" y="198" fill="#374151" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="600">读取页面 SKU</text>
+    <rect x="1019" y="165" width="219" height="52" rx="13" fill="#F8FAFC" stroke="#E5E7EB"/>
+    <text x="1098" y="198" fill="#374151" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="15" font-weight="600">批量导入</text>
+
+    <rect x="794" y="239" width="444" height="59" rx="13" fill="#fff" stroke="#E5E7EB"/>
+    <circle cx="817" cy="268.5" r="8" fill="#4F46E5"/>
+    <path d="m813 268.5 2.8 2.8 5.2-6.2" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="840" y="273" fill="#374151" font-family="monospace" font-size="14">LX-A100-BLACK</text>
+    <text x="1070" y="273" fill="#6B7280" font-family="monospace" font-size="14">PO-20260918-01</text>
+
+    <rect x="794" y="310" width="444" height="59" rx="13" fill="#fff" stroke="#E5E7EB"/>
+    <circle cx="817" cy="339.5" r="8" fill="#4F46E5"/>
+    <path d="m813 339.5 2.8 2.8 5.2-6.2" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="840" y="344" fill="#374151" font-family="monospace" font-size="14">LX-B220-WHITE</text>
+    <text x="1070" y="344" fill="#6B7280" font-family="monospace" font-size="14">PO-20260918-02</text>
+
+    <rect x="794" y="397" width="444" height="61" rx="14" fill="#4F46E5"/>
+    <path d="m945 416 19 12-19 12v-24Z" fill="#fff"/>
+    <text x="980" y="435" fill="#fff" font-family="Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="19" font-weight="600">开始匹配（2 行）</text>
+  </g>
+</svg>
