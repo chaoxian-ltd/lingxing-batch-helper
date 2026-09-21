@@ -1,6 +1,6 @@
 (() => {
-  if (globalThis.__lingxingBatchHelperVersion === '0.1.5') return;
-  globalThis.__lingxingBatchHelperVersion = '0.1.5';
+  if (globalThis.__lingxingBatchHelperVersion === '0.1.6') return;
+  globalThis.__lingxingBatchHelperVersion = '0.1.6';
   let cancelled = false;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const visible = element => !!element && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
@@ -110,13 +110,19 @@
       const parts = cell => [...(cell?.querySelectorAll('.batch_info_row') || [])];
       const numbers = parts(batchCell);
       const orders = parts(columnCell(product, ['采购单号']));
-      const available = parts(columnCell(product, ['可用总出库量']));
+      const totalAvailableCell = columnCell(product, ['可用总出库量']);
+      const totalAvailableParts = parts(totalAvailableCell);
       const quantities = parts(columnCell(product, ['批次可用出库量']));
       return numbers.flatMap((part, index) => {
         const number = text(part);
         if (part.querySelector('button') || !number || text(orders[index]) !== purchaseOrder ||
             (batchNumber && number !== batchNumber)) return [];
-        return [{ batchNumber: number, availableCell: available[index], quantityCell: quantities[index] }];
+        // 分仓页面的“可用总出库量”可能是 SKU 级单值，而不是每个批次一行。
+        // 只有多个子行时才按批次索引对应；单一子行或纯文本单元格为所有批次共用。
+        const availableCell = totalAvailableParts.length > 1
+          ? totalAvailableParts[index]
+          : (totalAvailableParts[0] || totalAvailableCell);
+        return [{ batchNumber: number, availableCell, quantityCell: quantities[index] }];
       });
     }
     const candidates = [...product.querySelectorAll('tr')];
@@ -144,9 +150,8 @@
     const quantityCell = batchRow.quantityCell;
     const inputs = [...(quantityCell?.querySelectorAll('input') || [])].filter(input =>
       visible(input) && !input.disabled && !input.readOnly && input.type !== 'checkbox' && input.type !== 'hidden');
-    if (quantity === null || inputs.length !== 1) {
-      throw new Error(`SKU“${sku}”的可用总出库量或出库数量列无法唯一识别，未填写数量`);
-    }
+    if (quantity === null) throw new Error(`SKU“${sku}”的可用总出库量无法识别，未填写数量`);
+    if (inputs.length !== 1) throw new Error(`SKU“${sku}”的出库数量输入框无法唯一识别，未填写数量`);
     setValue(inputs[0], quantity);
     await sleep(120);
     const updated = scopedBatchRows(sku, purchaseOrder, batchNumber);

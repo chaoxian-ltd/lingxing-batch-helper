@@ -87,6 +87,33 @@ test('real VXE layout: split header/body tables and multiple batches inside each
   assert.deepEqual(inputs.map(pair => pair.map(input => input.value)), [['48', ''], ['36', '9'], ['32', '']]);
 });
 
+for (const totalLayout of ['plain cell', 'single child row']) {
+  test(`warehouse split layout: SKU-level total availability in ${totalLayout} is shared by all batches`, async () => {
+    const inputs = [new Input(), new Input()];
+    const labels = ['图片', '品名/SKU', '出库批次号', '批次可用量', '可用总出库量', '批次可用出库量', '采购单号'];
+    const cell = (tag, index, label = '', children = []) => Object.assign(el(tag, label, children), { colid: `column-${index}` });
+    const part = (label = '', children = []) => Object.assign(el('div', label, children), { className: 'batch_info_row' });
+    const totalCell = totalLayout === 'plain cell'
+      ? cell('td', 4, '27')
+      : cell('td', 4, '', [part('27')]);
+    const row = el('tr', '', [
+      cell('td', 0), cell('td', 1, '商品\nSPLIT-SKU'),
+      cell('td', 2, '', [part('BATCH-A'), part('BATCH-B'), part('', [el('button', '添加指定出库批次')])]),
+      cell('td', 3, '', [part('5'), part('8'), part()]),
+      totalCell,
+      cell('td', 5, '', [part('', [inputs[0]]), part('', [inputs[1]]), part()]),
+      cell('td', 6, '', [part('SAME-PO'), part('SAME-PO'), part()]),
+    ]);
+    const header = el('table', '', [el('tr', '', labels.map((label, index) => cell('th', index, label)))]);
+    const body = el('table', '', [row]);
+    const widget = Object.assign(el('div', '', [header, body]), { className: 'vxe-table' });
+    const api = load(el('document', '', [widget]));
+
+    assert.equal(await api.fillBatchQuantity('SPLIT-SKU', 'SAME-PO', 'BATCH-B'), '27');
+    assert.deepEqual(inputs.map(input => input.value), ['', '27']);
+  });
+}
+
 for (const expanded of [false, true]) {
   test(`13 SKUs sharing an order and batch retain their own quantities (expanded=${expanded})`, async () => {
     const quantities = [48, 12, 36, 7, 22, 19, 65, 101, 8, 32, 16, 5, 0];
@@ -100,7 +127,7 @@ for (const expanded of [false, true]) {
 }
 test('missing quantity header stops without writing any input', async () => {
   const { api, inputs } = fixture([48, 12], { quantityHeader: '未知列' });
-  await assert.rejects(api.fillBatchQuantity('SKU-1', 'SAME-PO', 'SAME-BATCH'), /无法唯一识别/);
+  await assert.rejects(api.fillBatchQuantity('SKU-1', 'SAME-PO', 'SAME-BATCH'), /可用总出库量无法识别/);
   assert.deepEqual(inputs.map(input => input.value), ['', '']);
 });
 test('a batch from another SKU must not be used as a fallback', async () => {
