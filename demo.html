@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>出库批次助手 · 界面演示</title>
+  <link rel="stylesheet" href="./ui-dist/assets/index-DhsZKatr.css" />
+  <style>
+    .demo-bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px; background: #eaf4ff; border-bottom: 1px solid #c7e0ff; font: 14px system-ui, sans-serif; }
+    .demo-bar button { padding: 8px 14px; border-radius: 8px; background: #175cd3; color: white; cursor: pointer; }
+    .demo-bar button:disabled { opacity: .5; cursor: wait; }
+    .demo-bar span { color: #315071; }
+  </style>
+  <script>
+    // This page uses the built extension UI with local mock Chrome APIs.
+    // No ERP page or account is contacted.
+    const listeners = [];
+    const announce = event => listeners.forEach(listener => listener({ type: 'batchProgress', ...event }, { tab: { id: 1 } }));
+    const sampleSkus = ['DEMO-SKU-A', 'DEMO-SKU-B', 'DEMO-SKU-C'];
+    window.chrome = {
+      tabs: {
+        query: async () => [{ id: 1, url: 'https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice' }],
+        sendMessage: async (_tabId, message) => {
+          if (message.type === 'getInvoiceSkus') return { skus: sampleSkus };
+          if (message.type === 'stopBatchMatching') return { accepted: true };
+          if (message.type !== 'startBatchMatching') return { accepted: false };
+          const { pairs, mode } = message;
+          setTimeout(() => {
+            const results = pairs.map(pair => {
+              if (mode === 'compatible' || pair.sku === 'DEMO-SKU-A')
+                return { ...pair, status: 'completed', actualOrder: mode === 'compatible' ? 'PO-B、PO-X' : pair.purchaseOrder, batchNumber: 'BATCH-001', quantity: '12' };
+              if (pair.sku === 'DEMO-SKU-B')
+                return { ...pair, status: 'compatible', actualOrders: ['PO-B、PO-X'], reason: '搜索到一条拼接采购单号批次，可点击兼容匹配处理' };
+              return { ...pair, status: 'unmatched', actualOrders: [], reason: '搜索无可匹配批次' };
+            });
+            results.forEach((result, index) => announce({ message: `(${index + 1}/${results.length}) ${result.sku}：${result.status === 'completed' ? '已匹配' : result.reason}`, level: result.status === 'unmatched' ? 'error' : 'info' }));
+            announce({ message: `${mode === 'compatible' ? '兼容' : '精确'}匹配演示完成`, level: 'success', done: true, report: { phase: mode, results, failure: null } });
+          }, 700);
+          return { accepted: true };
+        },
+      },
+      runtime: {
+        sendMessage: async () => ({ ready: true }),
+        onMessage: { addListener(listener) { listeners.push(listener); }, removeListener(listener) { const index = listeners.indexOf(listener); if (index >= 0) listeners.splice(index, 1); } },
+      },
+    };
+    const waitFor = async find => {
+      for (let i = 0; i < 100; i++) {
+        const item = find();
+        if (item) return item;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error('演示界面未就绪');
+    };
+    const button = label => [...document.querySelectorAll('button')].find(item => item.textContent.includes(label));
+    const fill = (input, value) => {
+      const setter = Object.getOwnPropertyDescriptor(input.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set;
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    async function runDemo() {
+      const control = document.getElementById('demo-run');
+      control.disabled = true;
+      try {
+        (await waitFor(() => button('批量导入'))).click();
+        fill(await waitFor(() => document.querySelector('[aria-label="导入 SKU"]')), sampleSkus.join('\n'));
+        fill(document.querySelector('[aria-label="导入采购单号"]'), 'PO-A\nPO-B\nPO-C');
+        (await waitFor(() => button('导入到列表'))).click();
+        (await waitFor(() => button('开始匹配'))).click();
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        control.disabled = false;
+      }
+    }
+    window.addEventListener('load', () => {
+      if (new URLSearchParams(location.search).has('autorun')) setTimeout(runDemo, 150);
+    });
+  </script>
+  <script type="module" src="./ui-dist/assets/index-Di2NGvzq.js"></script>
+</head>
+<body>
+  <div class="demo-bar"><button id="demo-run" onclick="runDemo()">一键演示匹配</button><span>模拟数据 · 不连接领星</span></div>
+  <div id="root"></div>
+</body>
+</html>

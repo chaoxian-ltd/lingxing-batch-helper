@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import './index.css';
 
 const makeRow = (sku = '', purchaseOrder = '', selected = false) => ({ id: crypto.randomUUID(), sku, purchaseOrder, selected });
+const reportDetails = item => `SKU ${item.sku}｜输入采购单号 ${item.purchaseOrder}｜领星采购单号 ${item.actualOrders?.join('、') || item.actualOrder || '未查到'}`;
 async function invoiceTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.url?.startsWith('https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice')) throw new Error('请先切换到领星的“生成发货单”页面');
@@ -204,16 +205,16 @@ function App() {
         <p className="font-medium">匹配成功 {completedRows.length}/{reportRows.length} · 可兼容匹配 {compatibleRows.length} 条 · 完全不能匹配 {unmatchedRows.length} 条{unfinishedRows.length ? ` · 处理未完成 ${unfinishedRows.length} 条` : ''}</p>
         {!!compatibleRows.length && <div className="space-y-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
           <h3 className="font-medium">可兼容匹配</h3>
-          {compatibleRows.map(item => <p key={item.sku} className="break-all text-xs">SKU {item.sku}｜输入 {item.purchaseOrder}｜页面 {item.actualOrders?.join('、')}｜{item.reason}</p>)}
+          {compatibleRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
           <Button size="sm" disabled={running || !!report?.failure} onClick={matchCompatible}>兼容匹配（{compatibleRows.length} 条）</Button>
         </div>}
         {!!unmatchedRows.length && <div role="alert" className="space-y-2 rounded-md border border-red-500 bg-red-50 p-3 text-red-800">
           <h3 className="font-medium">完全不能匹配：{unmatchedRows.length} 条</h3>
-          {unmatchedRows.map(item => <p key={item.sku} className="break-all text-xs">SKU {item.sku}｜输入 {item.purchaseOrder}｜页面 {item.actualOrders?.join('、') || '未查到'}｜{item.reason}</p>)}
+          {unmatchedRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
         </div>}
         {!!unfinishedRows.length && <div className="space-y-2 rounded-md border p-3 text-muted-foreground">
           <h3 className="font-medium">处理未完成：{unfinishedRows.length} 条</h3>
-          {unfinishedRows.map(item => <p key={item.sku} className="break-all text-xs">SKU {item.sku}｜{item.reason}</p>)}
+          {unfinishedRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
         </div>}
       </div>
       <DialogFooter><Button variant="outline" onClick={() => setReportOpen(false)}>关闭</Button></DialogFooter>
