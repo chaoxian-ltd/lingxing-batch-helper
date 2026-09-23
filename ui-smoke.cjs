@@ -23,7 +23,9 @@ const assert = require('node:assert/strict');
           query: async () => { testCalls.push('query'); return [{ id: 1, url: 'https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice' }]; },
           sendMessage: async (id, message) => {
             testCalls.push(message);
-            return message.type === 'getInvoiceSkus' ? { skus: ['SKU-A', 'SKU-B'] } : { accepted: true };
+            if (message.type === 'getInvoiceSkus') return { skus: ['SKU-A', 'SKU-B'] };
+            if (message.type === 'showBatchReport') return { shown: true };
+            return { accepted: true };
           },
         },
         runtime: { sendMessage: async () => ({ ready: true }), onMessage: { addListener(listener) { window.progressListener = listener; }, removeListener() {} } },
@@ -86,34 +88,27 @@ const assert = require('node:assert/strict');
         { status: 'compatible', sku: 'SKU-B', purchaseOrder: 'PO-B', actualOrders: ['PO-B456'], reason: '可兼容匹配' },
       ] },
     }, { tab: { id: 1 } }));
-    const report = page.getByRole('region', { name: '匹配结果' });
-    await report.waitFor();
-    assert.equal(await page.getByRole('dialog').count(), 0, '匹配结果应直接显示在侧栏');
+    await page.getByRole('button', { name: '查看匹配结果' }).waitFor();
+    assert.equal(await page.getByRole('region', { name: '匹配结果' }).count(), 0, '侧栏不应显示匹配结果');
     await page.getByRole('button', { name: '修改列表并重新匹配' }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: '第 1 行采购单号' }).isDisabled(), true, '报告期间应锁定采购单号');
     assert.equal(await page.getByRole('button', { name: '删除第 1 行' }).isDisabled(), true, '报告期间应禁止删除');
     assert.equal(await page.getByRole('button', { name: '清空列表' }).isDisabled(), true, '报告期间应禁止清空');
     assert.equal(await page.getByRole('button', { name: '批量导入' }).isDisabled(), true, '报告期间应禁止导入');
-    assert.match(await report.innerText(), /SKU SKU-A｜输入采购单号 PO-A｜领星采购单号 PO-A123/);
-    assert.equal(await report.getByRole('button', { name: '兼容匹配（0 条）' }).isDisabled(), true, '未选择时不能执行兼容匹配');
-    await report.getByRole('checkbox', { name: '选择兼容匹配 SKU SKU-B' }).click();
-    await page.getByRole('button', { name: '兼容匹配（1 条）' }).click();
-    assert.deepEqual(await page.evaluate(() => testCalls.filter(x => x.type === 'startBatchMatching').at(-1)),
-      { type: 'startBatchMatching', pairs: [{ sku: 'SKU-B', purchaseOrder: 'PO-B' }], mode: 'compatible' });
+    await page.getByRole('button', { name: '查看匹配结果' }).click();
+    assert.equal(await page.evaluate(() => testCalls.at(-1).type), 'showBatchReport');
+    await page.evaluate(() => progressListener({ type: 'batchProgress', message: '开始兼容匹配', started: true }, { tab: { id: 1 } }));
+    await page.getByRole('button', { name: '暂停匹配' }).waitFor();
     await page.evaluate(() => progressListener({
       type: 'batchProgress', message: '兼容匹配完成', level: 'success', done: true,
       report: { phase: 'compatible', failure: null, results: [{ status: 'unmatched', sku: 'SKU-B',
         purchaseOrder: 'PO-B', actualOrders: ['PO-B456'], reason: '无法唯一确定' }] },
     }, { tab: { id: 1 } }));
-    const unmatched = report.getByRole('alert').filter({ hasText: '完全不能匹配：1 条' });
-    await unmatched.waitFor();
-    await report.getByText('匹配成功 0/2 · 可兼容匹配 1 条 · 完全不能匹配 1 条').waitFor();
-    assert.match(await unmatched.innerText(), /SKU SKU-B｜输入采购单号 PO-B｜领星采购单号 PO-B456/);
-    assert.doesNotMatch(await unmatched.innerText(), /无法唯一确定/);
-    assert.equal(await report.getByRole('checkbox', { name: '选择兼容匹配 SKU SKU-A' }).isChecked(), false, '未选中的 SKU 应保留待处理');
+    await page.getByRole('button', { name: '查看匹配结果' }).waitFor();
     await page.getByRole('button', { name: '修改列表并重新匹配' }).click();
     assert.equal(await page.getByRole('textbox', { name: '第 1 行采购单号' }).isEnabled(), true, '明确重新编辑后才开放修改');
-    assert.equal(await report.count(), 0, '重新编辑时旧结果应失效');
+    assert.equal(await page.getByRole('button', { name: '查看匹配结果' }).count(), 0, '重新编辑时旧结果应失效');
+    await page.waitForFunction(() => testCalls.some(x => x.type === 'clearBatchReport'));
     assert.deepEqual(errors, []);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     console.log('PASS: empty startup, explicit read, import validation, downward fill/overwrite/bounds/lock, bulk fill, clear, preserved values, matching payload, 440px layout');

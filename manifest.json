@@ -27,7 +27,7 @@
   "content_scripts": [
     {
       "matches": ["https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice*"],
-      "js": ["content.js"],
+      "js": ["report-overlay.js", "content.js"],
       "run_at": "document_idle"
     }
   ]

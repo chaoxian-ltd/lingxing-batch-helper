@@ -1,7 +1,9 @@
 (() => {
-  if (globalThis.__lingxingBatchHelperVersion === '0.1.17') return;
-  globalThis.__lingxingBatchHelperVersion = '0.1.17';
+  if (globalThis.__lingxingBatchHelperVersion === '0.1.17-center-report') return;
+  globalThis.__lingxingBatchHelperVersion = '0.1.17-center-report';
   let cancelled = false;
+  let activeRun = false;
+  let reportState = null;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const visible = element => !!element && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
   const text = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -111,6 +113,14 @@
       .some(element => visible(element) && /暂无|无数据|没有|空数据/.test(text(element)));
     const matches = candidates.filter(row => orderMatches(text(columnCell(row, ['采购单号'])), purchaseOrder, fuzzy));
     return { candidates, matches, empty, signature: `${candidates.map(text).join('|')}|${empty}` };
+  }
+
+  function closeReportOverlay() { globalThis.__lingxingBatchReportOverlay?.close(); }
+
+  function showReportOverlay() {
+    return globalThis.__lingxingBatchReportOverlay?.show(reportState, pairs => {
+      if (!activeRun) run(pairs, 'compatible');
+    }) || false;
   }
 
   async function closeBatchDialog(dialog) {
@@ -278,8 +288,11 @@
   }
 
   async function run(pairs, mode = 'exact') {
+    if (activeRun) return false;
+    activeRun = true;
+    if (mode === 'exact') { reportState = null; closeReportOverlay(); }
     cancelled = false;
-    send(`开始${mode === 'compatible' ? '兼容' : '完全'}匹配 ${pairs.length} 条 SKU`);
+    send(`开始${mode === 'compatible' ? '兼容' : '完全'}匹配 ${pairs.length} 条 SKU`, 'info', false, { started: true });
     const results = [];
     let index = 0;
     let failure = null;
@@ -296,13 +309,21 @@
     const unmatchedRows = results.filter(item => item.status === 'unmatched');
     if (failure && index < pairs.length) results.push({ status: 'failed', ...pairs[index], reason: failure.message });
     if (failure) for (const pair of pairs.slice(index + 1)) results.push({ status: 'unprocessed', ...pair, reason: '本轮未处理' });
+    const currentReport = { phase: mode, results, failure: failure?.message || null };
+    reportState = mode === 'compatible' && reportState
+      ? { phase: 'final', failure: currentReport.failure, results: reportState.results.map(item =>
+          results.find(updated => updated.sku === item.sku) || item) }
+      : currentReport;
+    activeRun = false;
     if (failure) {
       send(`已暂停：${failure.message}`, 'error', true,
-        { report: { phase: mode, results, failure: failure.message } });
+        { report: currentReport });
     } else {
       send(`本轮结束：已匹配 ${completed.length} 条，可兼容匹配 ${compatibleRows.length} 条，无法匹配 ${unmatchedRows.length} 条`, 'success', true,
-        { report: { phase: mode, results, failure: null } });
+        { report: currentReport });
     }
+    showReportOverlay();
+    return true;
   }
 
   chrome.runtime.onMessage.addListener((message, sender, respond) => {
@@ -310,8 +331,15 @@
       respond({ skus: invoiceSkus() });
     }
     if (message.type === 'startBatchMatching') {
+      if (activeRun) { respond({ accepted: false }); return true; }
       run(message.pairs, message.mode === 'compatible' ? 'compatible' : 'exact');
       respond({ accepted: true });
+    }
+    if (message.type === 'showBatchReport') respond({ shown: showReportOverlay() });
+    if (message.type === 'clearBatchReport') {
+      reportState = null;
+      closeReportOverlay();
+      respond({ cleared: true });
     }
     if (message.type === 'stopBatchMatching') {
       cancelled = true;

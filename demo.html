@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>出库批次助手 · 界面演示</title>
-  <link rel="stylesheet" href="./ui-dist/assets/index-zwPi7hLi.css" />
+  <link rel="stylesheet" href="./ui-dist/assets/index-DCgtWkU8.css" />
   <style>
     .demo-bar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px; background: #eaf4ff; border-bottom: 1px solid #c7e0ff; font: 14px system-ui, sans-serif; }
     .demo-bar button { padding: 8px 14px; border-radius: 8px; background: #175cd3; color: white; cursor: pointer; }
@@ -18,32 +18,44 @@
     const announce = event => listeners.forEach(listener => listener({ type: 'batchProgress', ...event }, { tab: { id: 1 } }));
     const sampleSkus = ['DEMO-SKU-A', 'DEMO-SKU-B', 'DEMO-SKU-C', 'DEMO-SKU-D'];
     const actualOrders = { 'DEMO-SKU-A': 'PO-A', 'DEMO-SKU-B': '123456', 'DEMO-SKU-C': '789012' };
+    let demoReport = null;
+    const showDemoReport = () => window.__lingxingBatchReportOverlay.show(demoReport, pairs => simulateRun(pairs, 'compatible'));
+    function simulateRun(pairs, mode) {
+      if (mode === 'exact') { demoReport = null; window.__lingxingBatchReportOverlay.close(); }
+      announce({ message: `开始${mode === 'compatible' ? '兼容' : '完全'}匹配 ${pairs.length} 条 SKU`, started: true });
+      setTimeout(() => {
+        const results = pairs.map(pair => {
+          const actualOrder = actualOrders[pair.sku];
+          const exact = actualOrder === pair.purchaseOrder;
+          const extended = actualOrder?.startsWith(pair.purchaseOrder) && actualOrder.length > pair.purchaseOrder.length;
+          if ((mode === 'exact' && exact) || (mode === 'compatible' && extended))
+            return { ...pair, status: 'completed', actualOrder, batchNumber: 'BATCH-001', quantity: '12' };
+          if (mode === 'exact' && extended)
+            return { ...pair, status: 'compatible', actualOrders: [actualOrder] };
+          return { ...pair, status: 'unmatched', actualOrders: [], reason: '搜索无可匹配批次' };
+        });
+        results.forEach((result, index) => announce({
+          message: `(${index + 1}/${results.length}) SKU ${result.sku}｜${result.status === 'completed' ? '已匹配' : result.status === 'compatible' ? '可兼容匹配' : '未匹配'}｜输入采购单号 ${result.purchaseOrder}｜领星采购单号 ${result.actualOrder || result.actualOrders?.join('、') || '未查到'}`,
+          level: result.status === 'unmatched' ? 'error' : 'info',
+        }));
+        const pass = { phase: mode, results, failure: null };
+        demoReport = mode === 'compatible' && demoReport
+          ? { phase: 'final', failure: null, results: demoReport.results.map(item => results.find(updated => updated.sku === item.sku) || item) }
+          : pass;
+        announce({ message: `${mode === 'compatible' ? '兼容' : '精确'}匹配演示完成`, level: 'success', done: true, report: pass });
+        showDemoReport();
+      }, 700);
+    }
     window.chrome = {
       tabs: {
         query: async () => [{ id: 1, url: 'https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice' }],
         sendMessage: async (_tabId, message) => {
           if (message.type === 'getInvoiceSkus') return { skus: sampleSkus };
           if (message.type === 'stopBatchMatching') return { accepted: true };
-          if (message.type !== 'startBatchMatching') return { accepted: false };
-          const { pairs, mode } = message;
-          setTimeout(() => {
-            const results = pairs.map(pair => {
-              const actualOrder = actualOrders[pair.sku];
-              const exact = actualOrder === pair.purchaseOrder;
-              const extended = actualOrder?.startsWith(pair.purchaseOrder) && actualOrder.length > pair.purchaseOrder.length;
-              if ((mode === 'exact' && exact) || (mode === 'compatible' && extended))
-                return { ...pair, status: 'completed', actualOrder, batchNumber: 'BATCH-001', quantity: '12' };
-              if (mode === 'exact' && extended)
-                return { ...pair, status: 'compatible', actualOrders: [actualOrder] };
-              return { ...pair, status: 'unmatched', actualOrders: [], reason: '搜索无可匹配批次' };
-            });
-            results.forEach((result, index) => announce({
-              message: `(${index + 1}/${results.length}) SKU ${result.sku}｜${result.status === 'completed' ? '已匹配' : result.status === 'compatible' ? '可兼容匹配' : '未匹配'}｜输入采购单号 ${result.purchaseOrder}｜领星采购单号 ${result.actualOrder || result.actualOrders?.join('、') || '未查到'}`,
-              level: result.status === 'unmatched' ? 'error' : 'info',
-            }));
-            announce({ message: `${mode === 'compatible' ? '兼容' : '精确'}匹配演示完成`, level: 'success', done: true, report: { phase: mode, results, failure: null } });
-          }, 700);
-          return { accepted: true };
+          if (message.type === 'showBatchReport') return { shown: showDemoReport() };
+          if (message.type === 'clearBatchReport') { demoReport = null; window.__lingxingBatchReportOverlay.close(); return { cleared: true }; }
+          if (message.type === 'startBatchMatching') { simulateRun(message.pairs, message.mode); return { accepted: true }; }
+          return { accepted: false };
         },
       },
       runtime: {
@@ -84,7 +96,8 @@
       if (new URLSearchParams(location.search).has('autorun')) setTimeout(runDemo, 150);
     });
   </script>
-  <script type="module" src="./ui-dist/assets/index-ChWjA7j2.js"></script>
+  <script src="./report-overlay.js"></script>
+  <script type="module" src="./ui-dist/assets/index-BSsV-_sk.js"></script>
 </head>
 <body>
   <div class="demo-bar"><button id="demo-run" onclick="runDemo()">一键演示匹配</button><span>模拟数据 · 不连接领星</span></div>
