@@ -186,7 +186,7 @@
 
   function skipPair({ sku, purchaseOrder }, number, total, reason, actualOrders = [], compatible = false) {
     const status = compatible ? 'compatible' : 'unmatched';
-    send(`(${number}/${total}) ${compatible ? '待兼容匹配' : '未匹配'}：${sku}，输入采购单号 ${purchaseOrder}，页面采购单号 ${actualOrders.join('、') || '未查到'}，${reason}`,
+    send(`(${number}/${total}) SKU ${sku}｜${compatible ? '可兼容匹配' : '未匹配'}｜输入采购单号 ${purchaseOrder}｜领星采购单号 ${actualOrders.join('、') || '未查到'}`,
       compatible ? 'info' : 'error', false, { status, sku, purchaseOrder, actualOrders, reason });
     return { status, sku, purchaseOrder, actualOrders, reason };
   }
@@ -296,17 +296,11 @@
     const unmatchedRows = results.filter(item => item.status === 'unmatched');
     if (failure && index < pairs.length) results.push({ status: 'failed', ...pairs[index], reason: failure.message });
     if (failure) for (const pair of pairs.slice(index + 1)) results.push({ status: 'unprocessed', ...pair, reason: '本轮未处理' });
-    send(`匹配报告：已匹配 ${completed.length} 条，可兼容匹配 ${compatibleRows.length} 条，无法匹配 ${unmatchedRows.length} 条${failure ? '；已暂停' : ''}`);
-    for (const item of results) {
-      if (item.status === 'completed') continue;
-      send(`SKU ${item.sku}｜${item.status === 'compatible' ? '可兼容匹配' : '未匹配'}｜输入采购单号 ${item.purchaseOrder} → 页面采购单号 ${item.actualOrders?.join('、') || '未查到'}｜${item.reason}`,
-        item.status === 'compatible' ? 'info' : 'error');
-    }
     if (failure) {
-      send(`已暂停：${failure.message}。请核对以上匹配报告`, 'error', true,
+      send(`已暂停：${failure.message}`, 'error', true,
         { report: { phase: mode, results, failure: failure.message } });
     } else {
-      send(`本轮结束：已匹配 ${completed.length} 条，可兼容匹配 ${compatibleRows.length} 条，无法匹配 ${unmatchedRows.length} 条${mode === 'exact' && compatibleRows.length ? '；可在报告中点击兼容匹配' : ''}`, 'success', true,
+      send(`本轮结束：已匹配 ${completed.length} 条，可兼容匹配 ${compatibleRows.length} 条，无法匹配 ${unmatchedRows.length} 条`, 'success', true,
         { report: { phase: mode, results, failure: null } });
     }
   }

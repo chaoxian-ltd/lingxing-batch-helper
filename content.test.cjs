@@ -209,7 +209,8 @@ test('search result with a longer order is reported for the second pass', async 
   const messages = api.events.map(event => event.message);
   assert.equal(dialog.hidden, true);
   assert.deepEqual(inputs.map(input => input.value), ['', '12']);
-  assert.ok(messages.some(message => message.includes('SKU SKU-0｜可兼容匹配｜输入采购单号 123 → 页面采购单号 123456')));
+  assert.ok(messages.some(message => message.includes('SKU SKU-0｜可兼容匹配｜输入采购单号 123｜领星采购单号 123456')));
+  assert.ok(messages.every(message => !message.includes('以输入单号开头的更长采购单号')));
   assert.equal(api.events.at(-1).report.results[1].status, 'completed');
   assert.ok(messages.some(message => message.includes('已匹配 1 条，可兼容匹配 1 条，无法匹配 0 条')));
   assert.equal(api.events.find(event => event.status === 'compatible').sku, 'SKU-0');
@@ -268,7 +269,7 @@ test('explicit empty search state skips without waiting for the timeout', async 
   dialog.parentElement = document;
   await api.run([{ sku: 'SKU-0', purchaseOrder: 'PO-X' }]);
   assert.equal(dialog.hidden, true);
-  assert.ok(api.events.some(event => event.message.includes('SKU SKU-0｜未匹配｜输入采购单号 PO-X → 页面采购单号 未查到')));
+  assert.ok(api.events.some(event => event.message.includes('SKU SKU-0｜未匹配｜输入采购单号 PO-X｜领星采购单号 未查到')));
   assert.ok(api.events.at(-1).message.includes('无法匹配 1 条'));
 });
 test('a temporary empty search state is not treated as the final result', async () => {
@@ -308,9 +309,7 @@ test('missing SKU is skipped and later SKUs continue', async () => {
 test('a technical write failure still pauses and reports later SKUs as unprocessed', async () => {
   const { api } = fixture([48], { quantityHeader: '未知列' });
   await api.run([{ sku: 'SKU-0', purchaseOrder: 'SAME-PO' }, { sku: 'LATER', purchaseOrder: 'SAME-PO' }]);
-  const messages = api.events.map(event => event.message);
-  assert.ok(messages.some(message => message.includes('SKU SKU-0｜未匹配')));
-  assert.ok(messages.some(message => message.includes('SKU LATER｜未匹配')));
+  assert.equal(api.events.at(-1).report.results.map(item => item.status).join(','), 'failed,unprocessed');
   assert.equal(api.events.at(-1).level, 'error');
 });
 test('empty lists are polled until rows arrive', async () => {

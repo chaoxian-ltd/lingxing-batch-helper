@@ -33,7 +33,10 @@
                 return { ...pair, status: 'compatible', actualOrders: [pair.sku === 'DEMO-SKU-B' ? '123456' : '789012'], reason: '领星采购单号以输入单号开头且更长' };
               return { ...pair, status: 'unmatched', actualOrders: [], reason: '搜索无可匹配批次' };
             });
-            results.forEach((result, index) => announce({ message: `(${index + 1}/${results.length}) ${result.sku}：${result.status === 'completed' ? '已匹配' : result.reason}`, level: result.status === 'unmatched' ? 'error' : 'info' }));
+            results.forEach((result, index) => announce({
+              message: `(${index + 1}/${results.length}) SKU ${result.sku}｜${result.status === 'completed' ? '已匹配' : result.status === 'compatible' ? '可兼容匹配' : '未匹配'}｜输入采购单号 ${result.purchaseOrder}｜领星采购单号 ${result.actualOrder || result.actualOrders?.join('、') || '未查到'}`,
+              level: result.status === 'unmatched' ? 'error' : 'info',
+            }));
             announce({ message: `${mode === 'compatible' ? '兼容' : '精确'}匹配演示完成`, level: 'success', done: true, report: { phase: mode, results, failure: null } });
           }, 700);
           return { accepted: true };
