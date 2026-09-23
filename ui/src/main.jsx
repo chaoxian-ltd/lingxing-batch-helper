@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import Switch from '@arco-design/web-react/es/Switch';
+import '@arco-design/web-react/es/Switch/style/index.css';
 import './index.css';
 
 const makeRow = (sku = '', purchaseOrder = '', selected = false) => ({ id: crypto.randomUUID(), sku, purchaseOrder, selected });
@@ -37,6 +39,7 @@ function App() {
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [report, setReport] = useState(null);
+  const [compatibleMode, setCompatibleMode] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [logs, setLogs] = useState([]);
@@ -70,7 +73,7 @@ function App() {
       setLogs(previous => [...previous, event]);
       if (event.started) { setRunning(true); setStopping(false); }
       if (event.done) {
-        setRunning(false); setStopping(false); setMessage(event.report ? '匹配结果已在网页中央显示' : event.message);
+        setRunning(false); setStopping(false); setMessage(event.message);
         if (event.report) setReport(previous => event.report.phase === 'compatible' && previous
           ? { phase: 'final', failure: event.report.failure, results: previous.results.map(item =>
               event.report.results.find(updated => updated.sku === item.sku) || item) }
@@ -123,19 +126,12 @@ function App() {
     try {
       const tab = await invoiceTab();
       targetTab.current = tab.id;
-      const result = await chrome.tabs.sendMessage(tab.id, { type: 'startBatchMatching', pairs, mode: 'exact' });
+      const result = await chrome.tabs.sendMessage(tab.id, { type: 'startBatchMatching', pairs, compatibleMode });
       if (!result?.accepted) throw new Error('页面未接受匹配任务');
     } catch (err) { setError(err.message); setRunning(false); }
   }
-  async function showReport() {
-    try {
-      const result = await chrome.tabs.sendMessage(targetTab.current, { type: 'showBatchReport' });
-      if (!result?.shown) throw new Error('无法打开网页中的匹配结果');
-    } catch (err) { setError(err.message); }
-  }
   function editAfterReport() {
     setReport(null); setLogs([]); setMessage('可修改列表；修改后请重新开始匹配');
-    if (targetTab.current) chrome.tabs.sendMessage(targetTab.current, { type: 'clearBatchReport' }).catch(() => {});
   }
   async function stop() {
     setStopping(true);
@@ -144,7 +140,13 @@ function App() {
   }
 
   return <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-5 p-5">
-    <header className="space-y-1"><h1 className="text-xl font-semibold tracking-tight">出库批次助手</h1><p className="text-sm text-muted-foreground">添加 SKU 和采购单号，再匹配对应批次。</p></header>
+    <header className="flex items-start justify-between gap-3">
+      <div className="space-y-1"><h1 className="text-xl font-semibold tracking-tight">出库批次助手</h1><p className="text-sm text-muted-foreground">添加 SKU 和采购单号，再匹配对应批次。</p></div>
+      <div className="flex shrink-0 items-center gap-2">
+        <label htmlFor="compatible-mode" className="text-xs font-medium">兼容匹配</label>
+        <Switch id="compatible-mode" aria-label="兼容匹配" size="small" checked={compatibleMode} disabled={locked} onChange={setCompatibleMode} />
+      </div>
+    </header>
     <div className="grid grid-cols-2 gap-2">
       <Button variant="outline" className="h-11" disabled={locked} onClick={readSkus}>{reading ? <LoaderCircle className="animate-spin"/> : <Download/>}读取页面 SKU</Button>
       <Button variant="outline" className="h-11" disabled={locked} onClick={() => { setImportError(''); setImportOpen(true); }}><ClipboardPaste/>批量导入</Button>
@@ -181,7 +183,7 @@ function App() {
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {message && <p role="status" className="text-xs leading-5 text-muted-foreground">{message}</p>}
     {!!rows.length && <div className="space-y-2">
-      {running ? <Button className="w-full" variant="secondary" disabled={stopping} onClick={stop}><Square/>{stopping ? '正在暂停…' : '暂停匹配'}</Button> : report ? <div className="grid grid-cols-2 gap-2"><Button variant="outline" onClick={editAfterReport}>修改列表并重新匹配</Button><Button onClick={showReport}>查看匹配结果</Button></div> : <Button className="w-full" disabled={!ready || reading} onClick={start}><Play/>开始匹配{ready ? `（${ready} 行）` : ''}</Button>}
+      {running ? <Button className="w-full" variant="secondary" disabled={stopping} onClick={stop}><Square/>{stopping ? '正在暂停…' : '暂停匹配'}</Button> : report ? <Button className="w-full" variant="outline" onClick={editAfterReport}>修改列表并重新匹配</Button> : <Button className="w-full" disabled={!ready || reading} onClick={start}><Play/>开始匹配{ready ? `（${ready} 行）` : ''}</Button>}
     </div>}
     {!!logs.length && <section className="space-y-2"><h2 className="text-xs font-medium">执行记录</h2><ol aria-live="polite" className="max-h-40 space-y-1 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5">{logs.map((item, index) => <li key={index} className={item.level === 'error' ? 'text-destructive' : item.level === 'success' ? 'text-green-700' : 'text-muted-foreground'}>{item.message}</li>)}<li ref={logEnd}/></ol></section>}
     <footer className="mt-auto border-t pt-4 text-xs leading-5 text-muted-foreground">仅填写批次与数量，整张发货单由你核对后提交。</footer>

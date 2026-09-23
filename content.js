@@ -1,9 +1,8 @@
 (() => {
-  if (globalThis.__lingxingBatchHelperVersion === '0.1.17-center-report') return;
-  globalThis.__lingxingBatchHelperVersion = '0.1.17-center-report';
+  if (globalThis.__lingxingBatchHelperVersion === '0.1.18-compatible-toggle') return;
+  globalThis.__lingxingBatchHelperVersion = '0.1.18-compatible-toggle';
   let cancelled = false;
   let activeRun = false;
-  let reportState = null;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const visible = element => !!element && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
   const text = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -113,14 +112,6 @@
       .some(element => visible(element) && /暂无|无数据|没有|空数据/.test(text(element)));
     const matches = candidates.filter(row => orderMatches(text(columnCell(row, ['采购单号'])), purchaseOrder, fuzzy));
     return { candidates, matches, empty, signature: `${candidates.map(text).join('|')}|${empty}` };
-  }
-
-  function closeReportOverlay() { globalThis.__lingxingBatchReportOverlay?.close(); }
-
-  function showReportOverlay() {
-    return globalThis.__lingxingBatchReportOverlay?.show(reportState, pairs => {
-      if (!activeRun) run(pairs, 'compatible');
-    }) || false;
   }
 
   async function closeBatchDialog(dialog) {
@@ -287,42 +278,80 @@
     return { status: 'completed', sku, purchaseOrder, actualOrder, batchNumber, quantity };
   }
 
-  async function run(pairs, mode = 'exact') {
+  async function run(pairs, compatibleMode = false) {
     if (activeRun) return false;
     activeRun = true;
-    if (mode === 'exact') { reportState = null; closeReportOverlay(); }
     cancelled = false;
-    send(`开始${mode === 'compatible' ? '兼容' : '完全'}匹配 ${pairs.length} 条 SKU`, 'info', false, { started: true });
+    send(`开始匹配 ${pairs.length} 条 SKU${compatibleMode ? '（已开启兼容匹配）' : ''}`, 'info', false, { started: true });
     const results = [];
     let index = 0;
     let failure = null;
+    let activePair = null;
     try {
       for (; index < pairs.length; index++) {
         if (cancelled) throw new Error('已暂停');
-        results.push(await processPair(pairs[index], index + 1, pairs.length, mode));
+        activePair = pairs[index];
+        results.push(await processPair(pairs[index], index + 1, pairs.length, 'exact'));
       }
     } catch (error) {
       failure = error;
     }
+    if (!failure && !compatibleMode) {
+      for (let resultIndex = 0; resultIndex < results.length; resultIndex++) {
+        const item = results[resultIndex];
+        if (item.status !== 'compatible') continue;
+        const reason = `${item.reason}；兼容匹配未开启，已跳过`;
+        results[resultIndex] = { ...item, status: 'unmatched', reason };
+        send(`SKU ${item.sku}｜未匹配｜输入采购单号 ${item.purchaseOrder}｜兼容匹配未开启，已跳过`, 'error', false,
+          { status: 'unmatched', sku: item.sku, purchaseOrder: item.purchaseOrder, actualOrders: item.actualOrders, reason });
+      }
+    }
+    if (!failure && compatibleMode) {
+      const candidates = results.filter(item => item.status === 'compatible');
+      if (candidates.length) send(`开始兼容匹配 ${candidates.length} 条 SKU`, 'info');
+      try {
+        for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
+          if (cancelled) throw new Error('已暂停');
+          const candidate = candidates[candidateIndex];
+          activePair = candidate;
+          const updated = await processPair(candidate, candidateIndex + 1, candidates.length, 'compatible');
+          const resultIndex = results.findIndex(item => item.sku === candidate.sku);
+          if (resultIndex >= 0) results[resultIndex] = updated;
+        }
+      } catch (error) {
+        failure = error;
+      }
+    }
+    if (failure && activePair) {
+      const failed = { status: 'failed', ...activePair, reason: failure.message };
+      const resultIndex = results.findIndex(item => item.sku === activePair.sku);
+      if (resultIndex >= 0) results[resultIndex] = failed;
+      else results.push(failed);
+    }
+    if (failure && compatibleMode) {
+      for (let resultIndex = 0; resultIndex < results.length; resultIndex++) {
+        const item = results[resultIndex];
+        if (item.status !== 'compatible') continue;
+        const reason = '兼容匹配未处理：本轮已暂停';
+        results[resultIndex] = { ...item, status: 'unmatched', reason };
+        send(`SKU ${item.sku}｜未匹配｜输入采购单号 ${item.purchaseOrder}｜本轮已暂停，未执行兼容匹配`, 'error', false,
+          { status: 'unmatched', sku: item.sku, purchaseOrder: item.purchaseOrder, actualOrders: item.actualOrders, reason });
+      }
+    }
+    const recorded = new Set(results.map(item => item.sku));
+    for (const pair of pairs) if (!recorded.has(pair.sku)) {
+      results.push({ status: 'unprocessed', ...pair, reason: '本轮未处理' });
+    }
     const completed = results.filter(item => item.status === 'completed');
     const compatibleRows = results.filter(item => item.status === 'compatible');
     const unmatchedRows = results.filter(item => item.status === 'unmatched');
-    if (failure && index < pairs.length) results.push({ status: 'failed', ...pairs[index], reason: failure.message });
-    if (failure) for (const pair of pairs.slice(index + 1)) results.push({ status: 'unprocessed', ...pair, reason: '本轮未处理' });
-    const currentReport = { phase: mode, results, failure: failure?.message || null };
-    reportState = mode === 'compatible' && reportState
-      ? { phase: 'final', failure: currentReport.failure, results: reportState.results.map(item =>
-          results.find(updated => updated.sku === item.sku) || item) }
-      : currentReport;
+    const currentReport = { phase: 'final', results, failure: failure?.message || null };
     activeRun = false;
     if (failure) {
-      send(`已暂停：${failure.message}`, 'error', true,
-        { report: currentReport });
+      send(`已暂停：${failure.message}`, 'error', true, { report: currentReport });
     } else {
-      send(`本轮结束：已匹配 ${completed.length} 条，可兼容匹配 ${compatibleRows.length} 条，无法匹配 ${unmatchedRows.length} 条`, 'success', true,
-        { report: currentReport });
+      send(`本轮结束：已匹配 ${completed.length} 条，未匹配 ${unmatchedRows.length} 条${compatibleRows.length ? `，可兼容匹配 ${compatibleRows.length} 条` : ''}`, 'success', true, { report: currentReport });
     }
-    showReportOverlay();
     return true;
   }
 
@@ -332,14 +361,8 @@
     }
     if (message.type === 'startBatchMatching') {
       if (activeRun) { respond({ accepted: false }); return true; }
-      run(message.pairs, message.mode === 'compatible' ? 'compatible' : 'exact');
+      run(message.pairs, message.compatibleMode === true);
       respond({ accepted: true });
-    }
-    if (message.type === 'showBatchReport') respond({ shown: showReportOverlay() });
-    if (message.type === 'clearBatchReport') {
-      reportState = null;
-      closeReportOverlay();
-      respond({ cleared: true });
     }
     if (message.type === 'stopBatchMatching') {
       cancelled = true;

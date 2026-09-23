@@ -168,27 +168,27 @@ test('multiple matching batches are skipped and reported', async () => {
   const widget = Object.assign(el('div', '', [header, el('table', '', [row])]), { className: 'vxe-table' });
   const api = load(el('document', '', [widget]));
   assert.equal(api.scopedBatchRows('SKU-A', '123', undefined, true).length, 2);
-  await api.run([{ sku: 'SKU-A', purchaseOrder: '123' }], 'compatible');
+  await api.run([{ sku: 'SKU-A', purchaseOrder: '123' }], true);
   const skipped = api.events.find(event => event.status === 'unmatched');
   assert.equal(skipped.sku, 'SKU-A');
-  assert.match(skipped.reason, /已有 2 条符合条件的批次/);
-  assert.ok(api.events.at(-1).message.includes('无法匹配 1 条'));
+  assert.match(skipped.reason, /已有 2 条以该采购单号开头的批次/);
+  assert.ok(api.events.at(-1).message.includes('未匹配 1 条'));
 });
-test('exact pass reports compatible candidates; second pass matches only those SKUs', async () => {
+test('compatible switch controls the longer order match in the same run', async () => {
   const { api } = fixture([48, 12], { purchaseOrder: '123456' });
   await api.run([{ sku: 'SKU-0', purchaseOrder: '123' }, { sku: 'SKU-1', purchaseOrder: '123456' }]);
   const first = api.events.at(-1).report;
-  assert.equal(first.phase, 'exact');
-  assert.equal(first.results[0].status, 'compatible');
+  assert.equal(first.phase, 'final');
+  assert.equal(first.results[0].status, 'unmatched');
   assert.equal(first.results[1].status, 'completed');
-  await api.run([{ sku: 'SKU-0', purchaseOrder: '123' }], 'compatible');
+  await api.run([{ sku: 'SKU-0', purchaseOrder: '123' }], true);
   const second = api.events.at(-1).report;
-  assert.equal(second.phase, 'compatible');
+  assert.equal(second.phase, 'final');
   assert.equal(second.results[0].status, 'completed');
   assert.equal(second.results[0].actualOrder, '123456');
   assert.equal(second.results[0].batchNumber, 'SAME-BATCH');
 });
-test('search result with a longer order is reported for the second pass', async () => {
+test('search result with a longer order is skipped when compatible switch is off', async () => {
   const { api, document, inputs } = fixture([10, 12], { purchaseOrder: 'PO-C' });
   const search = new Input();
   search.placeholder = '搜索内容';
@@ -210,9 +210,9 @@ test('search result with a longer order is reported for the second pass', async 
   assert.equal(dialog.hidden, true);
   assert.deepEqual(inputs.map(input => input.value), ['', '12']);
   assert.ok(messages.some(message => message.includes('SKU SKU-0｜可兼容匹配｜输入采购单号 123｜领星采购单号 123456')));
-  assert.ok(messages.every(message => !message.includes('以输入单号开头的更长采购单号')));
+  assert.ok(messages.some(message => message.includes('兼容匹配未开启，已跳过')));
   assert.equal(api.events.at(-1).report.results[1].status, 'completed');
-  assert.ok(messages.some(message => message.includes('已匹配 1 条，可兼容匹配 1 条，无法匹配 0 条')));
+  assert.ok(messages.some(message => message.includes('已匹配 1 条，未匹配 1 条')));
   assert.equal(api.events.find(event => event.status === 'compatible').sku, 'SKU-0');
   assert.equal(api.events.find(event => event.status === 'compatible').actualOrders.join('、'), '123456');
   assert.equal(api.events.at(-1).done, true);
@@ -238,7 +238,7 @@ test('multiple dialog matches are skipped and the next SKU continues', async () 
   assert.equal(dialog.hidden, true);
   assert.deepEqual(inputs.map(input => input.value), ['', '12']);
   assert.match(api.events.find(event => event.status === 'unmatched').reason, /搜索到 2 条符合条件的批次/);
-  assert.ok(api.events.at(-1).message.includes('已匹配 1 条，可兼容匹配 0 条，无法匹配 1 条'));
+  assert.ok(api.events.at(-1).message.includes('已匹配 1 条，未匹配 1 条'));
 });
 test('a matching but unavailable dialog batch is skipped', async () => {
   const { api, document } = fixture([10], { purchaseOrder: 'PO-A' });
@@ -270,7 +270,7 @@ test('explicit empty search state skips without waiting for the timeout', async 
   await api.run([{ sku: 'SKU-0', purchaseOrder: 'PO-X' }]);
   assert.equal(dialog.hidden, true);
   assert.ok(api.events.some(event => event.message.includes('SKU SKU-0｜未匹配｜输入采购单号 PO-X｜领星采购单号 未查到')));
-  assert.ok(api.events.at(-1).message.includes('无法匹配 1 条'));
+  assert.ok(api.events.at(-1).message.includes('未匹配 1 条'));
 });
 test('a temporary empty search state is not treated as the final result', async () => {
   const { api, document } = fixture([10], { purchaseOrder: 'PO-A' });

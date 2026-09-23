@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>出库批次助手 0.1.18 演示</title>
+  <link rel="stylesheet" href="./ui-dist/assets/index-CFltovDm.css" />
+  <style>
+    body { margin: 0; background: #edf2f7; }
+    .demo-toolbar { box-sizing: border-box; width: 100%; padding: 12px; text-align: center; font: 14px system-ui, sans-serif; color: #334155; }
+    .demo-toolbar button { margin: 0 5px; padding: 7px 13px; border-radius: 7px; background: #175cd3; color: white; cursor: pointer; }
+    #root { max-width: 440px; min-height: 90vh; margin: auto; background: white; box-shadow: 0 5px 30px #0002; }
+  </style>
+  <script>
+    const listeners = [];
+    const announce = event => listeners.forEach(listener => listener({ type: 'batchProgress', ...event }, { tab: { id: 1 } }));
+    const actualOrders = { 'DEMO-SKU-A': 'PO-A', 'DEMO-SKU-B': '123456' };
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    window.chrome = {
+      tabs: {
+        query: async () => [{ id: 1, url: 'https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice' }],
+        sendMessage: async (_tabId, message) => {
+          if (message.type === 'getInvoiceSkus') return { skus: ['DEMO-SKU-A', 'DEMO-SKU-B', 'DEMO-SKU-C'] };
+          if (message.type === 'stopBatchMatching') return { accepted: true };
+          if (message.type !== 'startBatchMatching') return { accepted: false };
+          simulateRun(message.pairs, message.compatibleMode);
+          return { accepted: true };
+        },
+      },
+      runtime: {
+        sendMessage: async () => ({ ready: true }),
+        onMessage: {
+          addListener(listener) { listeners.push(listener); },
+          removeListener(listener) { const i = listeners.indexOf(listener); if (i >= 0) listeners.splice(i, 1); },
+        },
+      },
+    };
+    async function simulateRun(pairs, compatibleMode) {
+      announce({ message: `开始匹配 ${pairs.length} 条 SKU${compatibleMode ? '（已开启兼容匹配）' : ''}`, started: true });
+      const results = [];
+      for (const [index, pair] of pairs.entries()) {
+        await delay(450);
+        const actualOrder = actualOrders[pair.sku];
+        const exact = actualOrder === pair.purchaseOrder;
+        const compatible = actualOrder?.startsWith(pair.purchaseOrder) && actualOrder.length > pair.purchaseOrder.length;
+        const status = exact || (compatibleMode && compatible) ? 'completed' : 'unmatched';
+        const item = { ...pair, status, actualOrder, actualOrders: actualOrder ? [actualOrder] : [], batchNumber: status === 'completed' ? 'BATCH-001' : undefined, quantity: status === 'completed' ? '12' : undefined };
+        results.push(item);
+        announce({ message: `(${index + 1}/${pairs.length}) SKU ${pair.sku}｜${status === 'completed' ? '已匹配' : '未匹配'}｜输入采购单号 ${pair.purchaseOrder}｜领星采购单号 ${actualOrder || '未查到'}`, level: status === 'completed' ? 'info' : 'error' });
+      }
+      const completed = results.filter(item => item.status === 'completed').length;
+      announce({ message: `本轮结束：已匹配 ${completed} 条，未匹配 ${results.length - completed} 条`, level: 'success', done: true, report: { phase: 'final', results, failure: null } });
+    }
+    const findButton = label => [...document.querySelectorAll('button')].find(button => button.textContent.includes(label));
+    const waitFor = async find => { for (let i = 0; i < 100; i++) { const found = find(); if (found) return found; await delay(50); } throw new Error('演示界面未就绪'); };
+    const fill = (input, value) => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    async function runDemo(compatibleMode) {
+      try {
+        const edit = findButton('修改列表并重新匹配');
+        if (edit) { edit.click(); await delay(100); }
+        if (!document.querySelector('[aria-label="第 1 行 SKU"]')) {
+          (await waitFor(() => findButton('批量导入'))).click();
+          fill(await waitFor(() => document.querySelector('[aria-label="导入 SKU"]')), 'DEMO-SKU-A\nDEMO-SKU-B\nDEMO-SKU-C');
+          fill(document.querySelector('[aria-label="导入采购单号"]'), 'PO-A\n123\nPO-C');
+          await delay(80);
+          (await waitFor(() => findButton('导入到列表'))).click();
+        }
+        const toggle = await waitFor(() => document.querySelector('[role="switch"][aria-label="兼容匹配"]'));
+        if ((toggle.getAttribute('aria-checked') === 'true') !== compatibleMode) { toggle.click(); await delay(80); }
+        (await waitFor(() => findButton('开始匹配'))).click();
+      } catch (error) { alert(error.message); }
+    }
+    window.addEventListener('load', () => { if (new URLSearchParams(location.search).has('autorun')) setTimeout(() => runDemo(true), 300); });
+  </script>
+  <script type="module" src="./ui-dist/assets/index-Yi8MNREe.js"></script>
+</head>
+<body>
+  <div class="demo-toolbar">模拟数据，不连接领星 <button onclick="runDemo(false)">演示关闭兼容匹配</button><button onclick="runDemo(true)">演示开启兼容匹配</button></div>
+  <div id="root"></div>
+</body>
+</html>

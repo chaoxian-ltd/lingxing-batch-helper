@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "领星出库批次助手",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "按 SKU 和采购单号自动选择领星 ERP 出库批次。",
   "icons": {
     "16": "icons/icon16.png",
@@ -27,7 +27,7 @@
   "content_scripts": [
     {
       "matches": ["https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice*"],
-      "js": ["report-overlay.js", "content.js"],
+      "js": ["content.js"],
       "run_at": "document_idle"
     }
   ]

@@ -1,12 +1,13 @@
 {
   "name": "lingxing-batch-helper-ui",
   "private": true,
-  "version": "0.1.17",
+  "version": "0.1.18",
   "type": "module",
   "scripts": {
     "build": "vite build"
   },
   "dependencies": {
+    "@arco-design/web-react": "^2.66.16",
     "@tailwindcss/vite": "^4.3.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
