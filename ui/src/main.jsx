@@ -199,14 +199,13 @@ function App() {
     {report && <Button variant="outline" onClick={() => setReportOpen(true)}>查看匹配报告</Button>}
     {!!logs.length && <section className="space-y-2"><h2 className="text-xs font-medium">执行记录</h2><ol aria-live="polite" className="max-h-40 space-y-1 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5">{logs.map((item, index) => <li key={index} className={item.level === 'error' ? 'text-destructive' : item.level === 'success' ? 'text-green-700' : 'text-muted-foreground'}>{item.message}</li>)}<li ref={logEnd}/></ol></section>}
     <footer className="mt-auto border-t pt-4 text-xs leading-5 text-muted-foreground">仅填写批次与数量，整张发货单由你核对后提交。</footer>
-    <Dialog open={reportOpen} onOpenChange={setReportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-      <DialogHeader><DialogTitle>匹配报告</DialogTitle><DialogDescription>请核对结果后，再决定是否处理可兼容匹配的 SKU。</DialogDescription></DialogHeader>
+    <Dialog open={reportOpen} onOpenChange={setReportOpen}><DialogContent aria-describedby={undefined} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogHeader><DialogTitle>匹配报告</DialogTitle></DialogHeader>
       <div className="space-y-3 text-sm">
         <p className="font-medium">匹配成功 {completedRows.length}/{reportRows.length} · 可兼容匹配 {compatibleRows.length} 条 · 完全不能匹配 {unmatchedRows.length} 条{unfinishedRows.length ? ` · 处理未完成 ${unfinishedRows.length} 条` : ''}</p>
         {!!compatibleRows.length && <div className="space-y-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
           <h3 className="font-medium">可兼容匹配</h3>
           {compatibleRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
-          <Button size="sm" disabled={running || !!report?.failure} onClick={matchCompatible}>兼容匹配（{compatibleRows.length} 条）</Button>
         </div>}
         {!!unmatchedRows.length && <div role="alert" className="space-y-2 rounded-md border border-red-500 bg-red-50 p-3 text-red-800">
           <h3 className="font-medium">完全不能匹配：{unmatchedRows.length} 条</h3>
@@ -217,7 +216,7 @@ function App() {
           {unfinishedRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
         </div>}
       </div>
-      <DialogFooter><Button variant="outline" onClick={() => setReportOpen(false)}>关闭</Button></DialogFooter>
+      {!!compatibleRows.length && <DialogFooter><Button size="sm" disabled={running || !!report?.failure} onClick={matchCompatible}>兼容匹配（{compatibleRows.length} 条）</Button></DialogFooter>}
     </DialogContent></Dialog>
     <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader><DialogTitle>批量导入</DialogTitle><DialogDescription>左右每行一一对应。已有 SKU 更新采购单号，新 SKU 添加到列表。</DialogDescription></DialogHeader>

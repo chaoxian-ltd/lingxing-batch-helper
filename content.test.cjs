@@ -143,14 +143,16 @@ test('a batch from another SKU must not be used as a fallback', async () => {
   await assert.rejects(api.fillBatchQuantity('SKU-1', 'SAME-PO', 'OTHER-BATCH'), /未能定位/);
   assert.deepEqual(inputs.map(input => input.value), ['', '']);
 });
-test('fuzzy mode matches a purchase order inside a combined value; exact mode does not', async () => {
-  const { api, inputs } = fixture([48], { purchaseOrder: 'PO-A、PO-B' });
-  assert.equal(api.scopedBatchRows('SKU-0', 'PO-A').length, 0);
-  assert.equal(api.scopedBatchRows('SKU-0', 'PO-A', undefined, true).length, 1);
-  assert.equal(await api.fillBatchQuantity('SKU-0', 'PO-A', 'SAME-BATCH', true), '48');
+test('compatible mode matches only a longer single order beginning with the input', async () => {
+  const { api, inputs } = fixture([48], { purchaseOrder: '123456' });
+  assert.equal(api.scopedBatchRows('SKU-0', '123').length, 0);
+  assert.equal(api.scopedBatchRows('SKU-0', '123', undefined, true).length, 1);
+  assert.equal(await api.fillBatchQuantity('SKU-0', '123', 'SAME-BATCH', true), '48');
   assert.deepEqual(inputs.map(input => input.value), ['48']);
-  assert.equal(api.orderMatches('PO-A、PO-B', 'PO-C', true), false);
-  assert.equal(api.orderMatches('PO-A、PO-B', '', true), false);
+  assert.equal(api.orderMatches('123456', '234', true), false);
+  assert.equal(api.orderMatches('123456', '123456', true), false);
+  assert.equal(api.orderMatches('123、456', '123', true), false);
+  assert.equal(api.orderMatches('123456', '', true), false);
 });
 test('multiple matching batches are skipped and reported', async () => {
   const labels = ['图片', '品名/SKU', '出库批次号', '可用总出库量', '批次可用出库量', '采购单号'];
@@ -160,33 +162,33 @@ test('multiple matching batches are skipped and reported', async () => {
     cell('td', 0), cell('td', 1, '商品\nSKU-A'),
     cell('td', 2, '', [part('BATCH-A'), part('BATCH-B'), Object.assign(el('div', '', [el('button', '添加指定出库批次')]), { className: 'batch_info_row' })]),
     cell('td', 3, '10'), cell('td', 4),
-    cell('td', 5, '', [part('PO-A、PO-B'), part('PO-A、PO-C')]),
+    cell('td', 5, '', [part('123456'), part('123789')]),
   ]);
   const header = el('table', '', [el('tr', '', labels.map((label, index) => cell('th', index, label)))]);
   const widget = Object.assign(el('div', '', [header, el('table', '', [row])]), { className: 'vxe-table' });
   const api = load(el('document', '', [widget]));
-  assert.equal(api.scopedBatchRows('SKU-A', 'PO-A', undefined, true).length, 2);
-  await api.run([{ sku: 'SKU-A', purchaseOrder: 'PO-A' }], 'compatible');
+  assert.equal(api.scopedBatchRows('SKU-A', '123', undefined, true).length, 2);
+  await api.run([{ sku: 'SKU-A', purchaseOrder: '123' }], 'compatible');
   const skipped = api.events.find(event => event.status === 'unmatched');
   assert.equal(skipped.sku, 'SKU-A');
   assert.match(skipped.reason, /已有 2 条符合条件的批次/);
   assert.ok(api.events.at(-1).message.includes('无法匹配 1 条'));
 });
 test('exact pass reports compatible candidates; second pass matches only those SKUs', async () => {
-  const { api } = fixture([48, 12], { purchaseOrder: 'PO-A、PO-B' });
-  await api.run([{ sku: 'SKU-0', purchaseOrder: 'PO-A' }, { sku: 'SKU-1', purchaseOrder: 'PO-A、PO-B' }]);
+  const { api } = fixture([48, 12], { purchaseOrder: '123456' });
+  await api.run([{ sku: 'SKU-0', purchaseOrder: '123' }, { sku: 'SKU-1', purchaseOrder: '123456' }]);
   const first = api.events.at(-1).report;
   assert.equal(first.phase, 'exact');
   assert.equal(first.results[0].status, 'compatible');
   assert.equal(first.results[1].status, 'completed');
-  await api.run([{ sku: 'SKU-0', purchaseOrder: 'PO-A' }], 'compatible');
+  await api.run([{ sku: 'SKU-0', purchaseOrder: '123' }], 'compatible');
   const second = api.events.at(-1).report;
   assert.equal(second.phase, 'compatible');
   assert.equal(second.results[0].status, 'completed');
-  assert.equal(second.results[0].actualOrder, 'PO-A、PO-B');
+  assert.equal(second.results[0].actualOrder, '123456');
   assert.equal(second.results[0].batchNumber, 'SAME-BATCH');
 });
-test('search result with a combined order is reported for the second pass', async () => {
+test('search result with a longer order is reported for the second pass', async () => {
   const { api, document, inputs } = fixture([10, 12], { purchaseOrder: 'PO-C' });
   const search = new Input();
   search.placeholder = '搜索内容';
@@ -194,24 +196,24 @@ test('search result with a combined order is reported for the second pass', asyn
   const close = Object.assign(el('button', '取消'), { onClick() { dialog.hidden = true; } });
   const resultTable = el('table', '', [
     el('tr', '', [el('th', '采购单号'), el('th', '批次号'), el('th', '选择')]),
-    el('tr', '', [el('td', 'PO-A、PO-B'), el('td', 'BATCH-A'),
+    el('tr', '', [el('td', '123456'), el('td', 'BATCH-A'),
       el('td', '', [Object.assign(el('div'), { className: 'vxe-checkbox--icon vxe-checkbox--unchecked-icon' })])]),
   ]);
   const dialog = Object.assign(el('div', '', [el('div', '', [search, searchButton]), resultTable, close]), { className: 'el-dialog' });
   document.children.push(dialog);
   dialog.parentElement = document;
   await api.run([
-    { sku: 'SKU-0', purchaseOrder: 'PO-A' },
+    { sku: 'SKU-0', purchaseOrder: '123' },
     { sku: 'SKU-1', purchaseOrder: 'PO-C' },
   ]);
   const messages = api.events.map(event => event.message);
   assert.equal(dialog.hidden, true);
   assert.deepEqual(inputs.map(input => input.value), ['', '12']);
-  assert.ok(messages.some(message => message.includes('SKU SKU-0｜可兼容匹配｜输入采购单号 PO-A → 页面采购单号 PO-A、PO-B')));
+  assert.ok(messages.some(message => message.includes('SKU SKU-0｜可兼容匹配｜输入采购单号 123 → 页面采购单号 123456')));
   assert.equal(api.events.at(-1).report.results[1].status, 'completed');
   assert.ok(messages.some(message => message.includes('已匹配 1 条，可兼容匹配 1 条，无法匹配 0 条')));
   assert.equal(api.events.find(event => event.status === 'compatible').sku, 'SKU-0');
-  assert.equal(api.events.find(event => event.status === 'compatible').actualOrders.join('、'), 'PO-A、PO-B');
+  assert.equal(api.events.find(event => event.status === 'compatible').actualOrders.join('、'), '123456');
   assert.equal(api.events.at(-1).done, true);
 });
 test('multiple dialog matches are skipped and the next SKU continues', async () => {
@@ -290,11 +292,11 @@ test('a temporary empty search state is not treated as the final result', async 
   assert.equal(api.events.at(-1).report.results[0].actualOrders.join('、'), 'PO-Y');
 });
 test('missing SKU is skipped and later SKUs continue', async () => {
-  const { api } = fixture([48], { purchaseOrder: 'PO-A、PO-B' });
+  const { api } = fixture([48], { purchaseOrder: '123456' });
   await api.run([
-    { sku: 'SKU-0', purchaseOrder: 'PO-A' },
-    { sku: 'MISSING', purchaseOrder: 'PO-A' },
-    { sku: 'LATER', purchaseOrder: 'PO-A' },
+    { sku: 'SKU-0', purchaseOrder: '123' },
+    { sku: 'MISSING', purchaseOrder: '123' },
+    { sku: 'LATER', purchaseOrder: '123' },
   ], 'compatible');
   const messages = api.events.map(event => event.message);
   assert.equal(api.events.at(-1).report.results[0].status, 'completed');

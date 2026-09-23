@@ -28,9 +28,9 @@
           setTimeout(() => {
             const results = pairs.map(pair => {
               if (mode === 'compatible' || pair.sku === 'DEMO-SKU-A')
-                return { ...pair, status: 'completed', actualOrder: mode === 'compatible' ? 'PO-B、PO-X' : pair.purchaseOrder, batchNumber: 'BATCH-001', quantity: '12' };
+                return { ...pair, status: 'completed', actualOrder: mode === 'compatible' ? '123456' : pair.purchaseOrder, batchNumber: 'BATCH-001', quantity: '12' };
               if (pair.sku === 'DEMO-SKU-B')
-                return { ...pair, status: 'compatible', actualOrders: ['PO-B、PO-X'], reason: '搜索到一条拼接采购单号批次，可点击兼容匹配处理' };
+                return { ...pair, status: 'compatible', actualOrders: ['123456'], reason: '领星采购单号以输入单号开头且更长' };
               return { ...pair, status: 'unmatched', actualOrders: [], reason: '搜索无可匹配批次' };
             });
             results.forEach((result, index) => announce({ message: `(${index + 1}/${results.length}) ${result.sku}：${result.status === 'completed' ? '已匹配' : result.reason}`, level: result.status === 'unmatched' ? 'error' : 'info' }));
@@ -64,7 +64,7 @@
       try {
         (await waitFor(() => button('批量导入'))).click();
         fill(await waitFor(() => document.querySelector('[aria-label="导入 SKU"]')), sampleSkus.join('\n'));
-        fill(document.querySelector('[aria-label="导入采购单号"]'), 'PO-A\nPO-B\nPO-C');
+        fill(document.querySelector('[aria-label="导入采购单号"]'), 'PO-A\n123\nPO-C');
         (await waitFor(() => button('导入到列表'))).click();
         (await waitFor(() => button('开始匹配'))).click();
       } catch (error) {
@@ -77,7 +77,7 @@
       if (new URLSearchParams(location.search).has('autorun')) setTimeout(runDemo, 150);
     });
   </script>
-  <script type="module" src="./ui-dist/assets/index-Di2NGvzq.js"></script>
+  <script type="module" src="./ui-dist/assets/index-B6TpNiJh.js"></script>
 </head>
 <body>
   <div class="demo-bar"><button id="demo-run" onclick="runDemo()">一键演示匹配</button><span>模拟数据 · 不连接领星</span></div>

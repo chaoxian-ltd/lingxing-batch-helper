@@ -101,7 +101,8 @@
   }
 
   const orderMatches = (actual, expected, fuzzy) => !!expected &&
-    (fuzzy ? actual.includes(expected) : actual === expected);
+    (fuzzy ? actual.startsWith(expected) && actual.length > expected.length &&
+      !/[、，,；;|/\s]/.test(actual.slice(expected.length)) : actual === expected);
 
   function searchSnapshot(dialog, purchaseOrder, fuzzy) {
     const candidates = [...dialog.querySelectorAll('tr')].filter(row => visible(row) && row.querySelector('td') &&
@@ -208,9 +209,9 @@
     if (!fuzzy) {
       const compatibleExisting = scopedBatchRows(sku, purchaseOrder, undefined, true);
       if (compatibleExisting.length === 1) return skipPair(pair, number, total,
-        '已有一条拼接采购单号批次，可点击兼容匹配处理', [compatibleExisting[0].purchaseOrder], true);
+        '已有一条以输入单号开头的更长采购单号，可点击兼容匹配处理', [compatibleExisting[0].purchaseOrder], true);
       if (compatibleExisting.length > 1) return skipPair(pair, number, total,
-        `已有 ${compatibleExisting.length} 条包含该采购单号的批次，无法唯一确定`,
+        `已有 ${compatibleExisting.length} 条以该采购单号开头的批次，无法唯一确定`,
         [...new Set(compatibleExisting.map(item => item.purchaseOrder))]);
     }
     const addButton = exactButton(row, '添加指定出库批次');
@@ -245,10 +246,10 @@
         orderMatches(text(columnCell(candidate, ['采购单号'])), purchaseOrder, true) && checkboxInRow(candidate));
       await closeBatchDialog(dialog);
       if (compatibleRows.length === 1) return skipPair(pair, number, total,
-        '搜索到一条拼接采购单号批次，可点击兼容匹配处理',
+        '搜索到一条以输入单号开头的更长采购单号，可点击兼容匹配处理',
         [text(columnCell(compatibleRows[0], ['采购单号']))], true);
       const reason = compatibleRows.length > 1
-        ? `搜索到 ${compatibleRows.length} 条包含该采购单号的批次，无法唯一确定`
+        ? `搜索到 ${compatibleRows.length} 条以该采购单号开头的批次，无法唯一确定`
         : '搜索无可匹配批次';
       return skipPair(pair, number, total, reason, actualOrders);
     }
