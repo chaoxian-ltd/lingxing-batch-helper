@@ -17,6 +17,7 @@
     const listeners = [];
     const announce = event => listeners.forEach(listener => listener({ type: 'batchProgress', ...event }, { tab: { id: 1 } }));
     const sampleSkus = ['DEMO-SKU-A', 'DEMO-SKU-B', 'DEMO-SKU-C', 'DEMO-SKU-D'];
+    const actualOrders = { 'DEMO-SKU-A': 'PO-A', 'DEMO-SKU-B': '123456', 'DEMO-SKU-C': '789012' };
     window.chrome = {
       tabs: {
         query: async () => [{ id: 1, url: 'https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice' }],
@@ -27,10 +28,13 @@
           const { pairs, mode } = message;
           setTimeout(() => {
             const results = pairs.map(pair => {
-              if (mode === 'compatible' || pair.sku === 'DEMO-SKU-A')
-                return { ...pair, status: 'completed', actualOrder: mode === 'compatible' ? (pair.sku === 'DEMO-SKU-B' ? '123456' : '789012') : pair.purchaseOrder, batchNumber: 'BATCH-001', quantity: '12' };
-              if (pair.sku === 'DEMO-SKU-B' || pair.sku === 'DEMO-SKU-C')
-                return { ...pair, status: 'compatible', actualOrders: [pair.sku === 'DEMO-SKU-B' ? '123456' : '789012'], reason: '领星采购单号以输入单号开头且更长' };
+              const actualOrder = actualOrders[pair.sku];
+              const exact = actualOrder === pair.purchaseOrder;
+              const extended = actualOrder?.startsWith(pair.purchaseOrder) && actualOrder.length > pair.purchaseOrder.length;
+              if ((mode === 'exact' && exact) || (mode === 'compatible' && extended))
+                return { ...pair, status: 'completed', actualOrder, batchNumber: 'BATCH-001', quantity: '12' };
+              if (mode === 'exact' && extended)
+                return { ...pair, status: 'compatible', actualOrders: [actualOrder] };
               return { ...pair, status: 'unmatched', actualOrders: [], reason: '搜索无可匹配批次' };
             });
             results.forEach((result, index) => announce({
