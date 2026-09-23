@@ -26,7 +26,7 @@ const assert = require('node:assert/strict');
             return message.type === 'getInvoiceSkus' ? { skus: ['SKU-A', 'SKU-B'] } : { accepted: true };
           },
         },
-        runtime: { sendMessage: async () => ({ ready: true }), onMessage: { addListener() {}, removeListener() {} } },
+        runtime: { sendMessage: async () => ({ ready: true }), onMessage: { addListener(listener) { window.progressListener = listener; }, removeListener() {} } },
       };
     });
     await page.goto('https://fixture.local/');
@@ -76,7 +76,36 @@ const assert = require('node:assert/strict');
     await page.getByRole('button', { name: /开始匹配.*1 行/ }).click();
     await page.getByRole('button', { name: '暂停匹配' }).waitFor();
     assert.equal(await page.getByRole('button', { name: '将第 1 行采购单号应用到下面全部行' }).isDisabled(), true, '匹配运行时应禁用向下填充');
-    assert.deepEqual(await page.evaluate(() => testCalls.find(x => x.type === 'startBatchMatching').pairs), [{ sku: 'SKU-A', purchaseOrder: 'PO-A' }]);
+    await page.waitForFunction(() => testCalls.some(x => x.type === 'startBatchMatching'));
+    assert.deepEqual(await page.evaluate(() => testCalls.find(x => x.type === 'startBatchMatching')), { type: 'startBatchMatching', pairs: [{ sku: 'SKU-A', purchaseOrder: 'PO-A' }], mode: 'exact' });
+    await page.evaluate(() => progressListener({
+      type: 'batchProgress', message: '精确匹配完成', level: 'success', done: true,
+      report: { phase: 'exact', failure: null, results: [{ status: 'compatible', sku: 'SKU-A',
+        purchaseOrder: 'PO-A', actualOrders: ['PO-A、PO-B'], reason: '可兼容匹配' }] },
+    }, { tab: { id: 1 } }));
+    await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).first().click();
+    await page.getByRole('button', { name: '修改列表并重新匹配' }).waitFor();
+    assert.equal(await page.getByRole('textbox', { name: '第 1 行采购单号' }).isDisabled(), true, '报告期间应锁定采购单号');
+    assert.equal(await page.getByRole('button', { name: '删除第 1 行' }).isDisabled(), true, '报告期间应禁止删除');
+    assert.equal(await page.getByRole('button', { name: '清空列表' }).isDisabled(), true, '报告期间应禁止清空');
+    assert.equal(await page.getByRole('button', { name: '批量导入' }).isDisabled(), true, '报告期间应禁止导入');
+    await page.getByRole('button', { name: '查看匹配报告' }).click();
+    await page.getByRole('button', { name: '兼容匹配（1 条）' }).click();
+    assert.deepEqual(await page.evaluate(() => testCalls.filter(x => x.type === 'startBatchMatching').at(-1)),
+      { type: 'startBatchMatching', pairs: [{ sku: 'SKU-A', purchaseOrder: 'PO-A' }], mode: 'compatible' });
+    await page.evaluate(() => progressListener({
+      type: 'batchProgress', message: '兼容匹配完成', level: 'success', done: true,
+      report: { phase: 'compatible', failure: null, results: [{ status: 'unmatched', sku: 'SKU-A',
+        purchaseOrder: 'PO-A', actualOrders: ['PO-A、PO-B'], reason: '无法唯一确定' }] },
+    }, { tab: { id: 1 } }));
+    const unmatched = page.getByRole('alert').filter({ hasText: '完全不能匹配：1 条' });
+    await unmatched.waitFor();
+    await page.getByRole('dialog').getByText('匹配成功 0/1 · 可兼容匹配 0 条 · 完全不能匹配 1 条').waitFor();
+    assert.match(await unmatched.innerText(), /SKU SKU-A[\s\S]*输入 PO-A[\s\S]*页面 PO-A、PO-B/);
+    await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).first().click();
+    await page.getByRole('button', { name: '修改列表并重新匹配' }).click();
+    assert.equal(await page.getByRole('textbox', { name: '第 1 行采购单号' }).isEnabled(), true, '明确重新编辑后才开放修改');
+    assert.equal(await page.getByRole('button', { name: '查看匹配报告' }).count(), 0, '重新编辑时旧报告应失效');
     assert.deepEqual(errors, []);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     console.log('PASS: empty startup, explicit read, import validation, downward fill/overwrite/bounds/lock, bulk fill, clear, preserved values, matching payload, 440px layout');
