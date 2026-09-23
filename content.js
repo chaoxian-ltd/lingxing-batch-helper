@@ -1,6 +1,6 @@
 (() => {
-  if (globalThis.__lingxingBatchHelperVersion === '0.1.14') return;
-  globalThis.__lingxingBatchHelperVersion = '0.1.14';
+  if (globalThis.__lingxingBatchHelperVersion === '0.1.17') return;
+  globalThis.__lingxingBatchHelperVersion = '0.1.17';
   let cancelled = false;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const visible = element => !!element && element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden';
