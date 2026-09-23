@@ -38,7 +38,7 @@ function App() {
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [report, setReport] = useState(null);
-  const [reportOpen, setReportOpen] = useState(false);
+  const [compatibleSelection, setCompatibleSelection] = useState([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [logs, setLogs] = useState([]);
@@ -51,10 +51,12 @@ function App() {
   const targetTab = useRef(null);
   const phase = useRef('exact');
   const logEnd = useRef(null);
+  const reportRef = useRef(null);
   const locked = running || reading || !!report;
   const selected = rows.filter(row => row.selected).length;
   const reportRows = report?.results || [];
   const compatibleRows = reportRows.filter(item => item.status === 'compatible');
+  const selectedCompatibleRows = compatibleRows.filter(item => compatibleSelection.includes(item.sku));
   const unmatchedRows = reportRows.filter(item => item.status === 'unmatched');
   const unfinishedRows = reportRows.filter(item => ['failed', 'unprocessed'].includes(item.status));
   const completedRows = reportRows.filter(item => item.status === 'completed');
@@ -82,13 +84,14 @@ function App() {
           ? { phase: 'final', failure: event.report.failure, results: previous.results.map(item =>
               event.report.results.find(updated => updated.sku === item.sku) || item) }
           : event.report);
-        if (event.report) setReportOpen(true);
+        setCompatibleSelection([]);
       }
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
   }, []);
   useEffect(() => { logEnd.current?.scrollIntoView({ block: 'nearest' }); }, [logs]);
+  useEffect(() => { reportRef.current?.scrollIntoView({ block: 'start' }); }, [report]);
 
   async function readSkus() {
     setReading(true); setError(''); setMessage('');
@@ -128,7 +131,7 @@ function App() {
     if (new Set(pairs.map(row => row.sku)).size !== pairs.length) { setError('列表中有重复 SKU，请先处理'); return; }
     if (!pairs.length) return;
     phase.current = 'exact';
-    setReport(null); setReportOpen(false); setRunning(true); setLogs([]); setStopping(false);
+    setReport(null); setCompatibleSelection([]); setRunning(true); setLogs([]); setStopping(false);
     try {
       const tab = await invoiceTab();
       targetTab.current = tab.id;
@@ -138,9 +141,9 @@ function App() {
   }
   async function matchCompatible() {
     if (running || reading || !report || report.failure) return;
-    const pairs = compatibleRows.map(({ sku, purchaseOrder }) => ({ sku, purchaseOrder }));
+    const pairs = selectedCompatibleRows.map(({ sku, purchaseOrder }) => ({ sku, purchaseOrder }));
     if (!pairs.length) return;
-    setError(''); setMessage(''); setRunning(true); setStopping(false); setReportOpen(false);
+    setError(''); setMessage(''); setRunning(true); setStopping(false);
     phase.current = 'compatible';
     try {
       const tab = await invoiceTab();
@@ -193,31 +196,30 @@ function App() {
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {message && <p role="status" className="text-xs leading-5 text-muted-foreground">{message}</p>}
     {!!rows.length && <div className="space-y-2">
-      {running ? <Button className="w-full" variant="secondary" disabled={stopping} onClick={stop}><Square/>{stopping ? '正在暂停…' : '暂停匹配'}</Button> : report ? <Button className="w-full" variant="outline" onClick={() => { setReport(null); setReportOpen(false); setLogs([]); setMessage('可修改列表；修改后请重新开始匹配'); }}>修改列表并重新匹配</Button> : <Button className="w-full" disabled={!ready || reading} onClick={start}><Play/>开始匹配{ready ? `（${ready} 行）` : ''}</Button>}
-      <p className="text-center text-xs text-muted-foreground">先完成全部精确匹配，再从报告中选择兼容匹配。</p>
+      {running ? <Button className="w-full" variant="secondary" disabled={stopping} onClick={stop}><Square/>{stopping ? '正在暂停…' : '暂停匹配'}</Button> : report ? <Button className="w-full" variant="outline" onClick={() => { setReport(null); setCompatibleSelection([]); setLogs([]); setMessage('可修改列表；修改后请重新开始匹配'); }}>修改列表并重新匹配</Button> : <Button className="w-full" disabled={!ready || reading} onClick={start}><Play/>开始匹配{ready ? `（${ready} 行）` : ''}</Button>}
     </div>}
-    {report && <Button variant="outline" onClick={() => setReportOpen(true)}>查看匹配报告</Button>}
+    {report && <section ref={reportRef} aria-label="匹配结果" className="space-y-3 rounded-xl border p-4 text-sm">
+      <h2 className="font-semibold">匹配结果</h2>
+      <p className="font-medium">匹配成功 {completedRows.length}/{reportRows.length} · 可兼容匹配 {compatibleRows.length} 条 · 完全不能匹配 {unmatchedRows.length} 条{unfinishedRows.length ? ` · 处理未完成 ${unfinishedRows.length} 条` : ''}</p>
+      {!!compatibleRows.length && <div className="space-y-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
+        <h3 className="font-medium">可兼容匹配</h3>
+        {compatibleRows.map(item => <div key={item.sku} className="flex items-start gap-2 text-xs">
+          <Checkbox aria-label={`选择兼容匹配 SKU ${item.sku}`} checked={compatibleSelection.includes(item.sku)} disabled={running || !!report.failure} onCheckedChange={value => setCompatibleSelection(previous => value === true ? [...previous, item.sku] : previous.filter(sku => sku !== item.sku))}/>
+          <span className="break-all">{reportDetails(item)}</span>
+        </div>)}
+      </div>}
+      {!!unmatchedRows.length && <div role="alert" className="space-y-2 rounded-md border border-red-500 bg-red-50 p-3 text-red-800">
+        <h3 className="font-medium">完全不能匹配：{unmatchedRows.length} 条</h3>
+        {unmatchedRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
+      </div>}
+      {!!unfinishedRows.length && <div className="space-y-2 rounded-md border p-3 text-muted-foreground">
+        <h3 className="font-medium">处理未完成：{unfinishedRows.length} 条</h3>
+        {unfinishedRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
+      </div>}
+      {!!compatibleRows.length && <div className="flex justify-end"><Button size="sm" disabled={running || !!report.failure || !selectedCompatibleRows.length} onClick={matchCompatible}>兼容匹配（{selectedCompatibleRows.length} 条）</Button></div>}
+    </section>}
     {!!logs.length && <section className="space-y-2"><h2 className="text-xs font-medium">执行记录</h2><ol aria-live="polite" className="max-h-40 space-y-1 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5">{logs.map((item, index) => <li key={index} className={item.level === 'error' ? 'text-destructive' : item.level === 'success' ? 'text-green-700' : 'text-muted-foreground'}>{item.message}</li>)}<li ref={logEnd}/></ol></section>}
     <footer className="mt-auto border-t pt-4 text-xs leading-5 text-muted-foreground">仅填写批次与数量，整张发货单由你核对后提交。</footer>
-    <Dialog open={reportOpen} onOpenChange={setReportOpen}><DialogContent aria-describedby={undefined} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-      <DialogHeader><DialogTitle>匹配报告</DialogTitle></DialogHeader>
-      <div className="space-y-3 text-sm">
-        <p className="font-medium">匹配成功 {completedRows.length}/{reportRows.length} · 可兼容匹配 {compatibleRows.length} 条 · 完全不能匹配 {unmatchedRows.length} 条{unfinishedRows.length ? ` · 处理未完成 ${unfinishedRows.length} 条` : ''}</p>
-        {!!compatibleRows.length && <div className="space-y-2 rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
-          <h3 className="font-medium">可兼容匹配</h3>
-          {compatibleRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
-        </div>}
-        {!!unmatchedRows.length && <div role="alert" className="space-y-2 rounded-md border border-red-500 bg-red-50 p-3 text-red-800">
-          <h3 className="font-medium">完全不能匹配：{unmatchedRows.length} 条</h3>
-          {unmatchedRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
-        </div>}
-        {!!unfinishedRows.length && <div className="space-y-2 rounded-md border p-3 text-muted-foreground">
-          <h3 className="font-medium">处理未完成：{unfinishedRows.length} 条</h3>
-          {unfinishedRows.map(item => <p key={item.sku} className="break-all text-xs">{reportDetails(item)}</p>)}
-        </div>}
-      </div>
-      {!!compatibleRows.length && <DialogFooter><Button size="sm" disabled={running || !!report?.failure} onClick={matchCompatible}>兼容匹配（{compatibleRows.length} 条）</Button></DialogFooter>}
-    </DialogContent></Dialog>
     <Dialog open={importOpen} onOpenChange={setImportOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader><DialogTitle>批量导入</DialogTitle><DialogDescription>左右每行一一对应。已有 SKU 更新采购单号，新 SKU 添加到列表。</DialogDescription></DialogHeader>
       <div className="grid grid-cols-2 gap-3">

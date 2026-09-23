@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>出库批次助手 · 界面演示</title>
-  <link rel="stylesheet" href="./ui-dist/assets/index-DhsZKatr.css" />
+  <link rel="stylesheet" href="./ui-dist/assets/index-zwPi7hLi.css" />
   <style>
-    .demo-bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px; background: #eaf4ff; border-bottom: 1px solid #c7e0ff; font: 14px system-ui, sans-serif; }
+    .demo-bar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px; background: #eaf4ff; border-bottom: 1px solid #c7e0ff; font: 14px system-ui, sans-serif; }
     .demo-bar button { padding: 8px 14px; border-radius: 8px; background: #175cd3; color: white; cursor: pointer; }
     .demo-bar button:disabled { opacity: .5; cursor: wait; }
     .demo-bar span { color: #315071; }
@@ -16,7 +16,7 @@
     // No ERP page or account is contacted.
     const listeners = [];
     const announce = event => listeners.forEach(listener => listener({ type: 'batchProgress', ...event }, { tab: { id: 1 } }));
-    const sampleSkus = ['DEMO-SKU-A', 'DEMO-SKU-B', 'DEMO-SKU-C'];
+    const sampleSkus = ['DEMO-SKU-A', 'DEMO-SKU-B', 'DEMO-SKU-C', 'DEMO-SKU-D'];
     window.chrome = {
       tabs: {
         query: async () => [{ id: 1, url: 'https://erp.lingxing.com/erp/msupply/FBAgenerateInvoice' }],
@@ -28,9 +28,9 @@
           setTimeout(() => {
             const results = pairs.map(pair => {
               if (mode === 'compatible' || pair.sku === 'DEMO-SKU-A')
-                return { ...pair, status: 'completed', actualOrder: mode === 'compatible' ? '123456' : pair.purchaseOrder, batchNumber: 'BATCH-001', quantity: '12' };
-              if (pair.sku === 'DEMO-SKU-B')
-                return { ...pair, status: 'compatible', actualOrders: ['123456'], reason: '领星采购单号以输入单号开头且更长' };
+                return { ...pair, status: 'completed', actualOrder: mode === 'compatible' ? (pair.sku === 'DEMO-SKU-B' ? '123456' : '789012') : pair.purchaseOrder, batchNumber: 'BATCH-001', quantity: '12' };
+              if (pair.sku === 'DEMO-SKU-B' || pair.sku === 'DEMO-SKU-C')
+                return { ...pair, status: 'compatible', actualOrders: [pair.sku === 'DEMO-SKU-B' ? '123456' : '789012'], reason: '领星采购单号以输入单号开头且更长' };
               return { ...pair, status: 'unmatched', actualOrders: [], reason: '搜索无可匹配批次' };
             });
             results.forEach((result, index) => announce({ message: `(${index + 1}/${results.length}) ${result.sku}：${result.status === 'completed' ? '已匹配' : result.reason}`, level: result.status === 'unmatched' ? 'error' : 'info' }));
@@ -64,7 +64,7 @@
       try {
         (await waitFor(() => button('批量导入'))).click();
         fill(await waitFor(() => document.querySelector('[aria-label="导入 SKU"]')), sampleSkus.join('\n'));
-        fill(document.querySelector('[aria-label="导入采购单号"]'), 'PO-A\n123\nPO-C');
+        fill(document.querySelector('[aria-label="导入采购单号"]'), 'PO-A\n123\n789\nPO-D');
         (await waitFor(() => button('导入到列表'))).click();
         (await waitFor(() => button('开始匹配'))).click();
       } catch (error) {
@@ -77,7 +77,7 @@
       if (new URLSearchParams(location.search).has('autorun')) setTimeout(runDemo, 150);
     });
   </script>
-  <script type="module" src="./ui-dist/assets/index-B6TpNiJh.js"></script>
+  <script type="module" src="./ui-dist/assets/index-ChWjA7j2.js"></script>
 </head>
 <body>
   <div class="demo-bar"><button id="demo-run" onclick="runDemo()">一键演示匹配</button><span>模拟数据 · 不连接领星</span></div>
